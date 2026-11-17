@@ -123,6 +123,11 @@ de contactos ni del kanban.
   búsqueda por identidad y errores de conexión. El trazado de Next incluye la
   fuente y los recursos de PDFKit; no se pudo construir la imagen Docker en
   este equipo porque no está disponible Docker.
+- Se corrigió el trazado standalone de `generator-function/require.mjs`,
+  ausente en la imagen y requerido por Node 22. El build comprueba su inclusión
+  cuando esta dependencia está presente. Si el servidor devuelve HTML en un
+  error de exportación, la interfaz muestra el código HTTP en lugar de tratarlo
+  como JSON.
 - Siguen pendientes la carga de avatar, los campos configurables en la
   interfaz y embudos y tratos en el tablero.
 - El pipeline existente informa fallos de guardado y vuelve a leer sus datos;

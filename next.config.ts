@@ -14,7 +14,10 @@ const nextConfig: NextConfig = {
   // El paquete `postgres` usa APIs de Node que no deben empaquetarse en el bundle.
   serverExternalPackages: ["postgres", "pdfkit", "fontkit", "exceljs"],
   outputFileTracingIncludes: {
-    "/api/contacts/export": ["./node_modules/@fontsource/unifont/files/unifont-latin-400-normal.woff"],
+    "/api/contacts/export": [
+      "./node_modules/@fontsource/unifont/files/unifont-latin-400-normal.woff",
+      "./node_modules/.pnpm/generator-function@*/node_modules/generator-function/*.mjs",
+    ],
   },
   // 061 — El indicador de Next en modo dev caía encima de la cuenta del riel
   // (abajo a la izquierda) y tapaba el clic. Solo existe en dev; los errores

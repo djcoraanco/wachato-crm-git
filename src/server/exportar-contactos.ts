@@ -1,8 +1,5 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import ExcelJS from "exceljs";
-import PDFDocument from "pdfkit";
-import { openSync } from "fontkit";
 import { CHANNEL_LABEL } from "@/lib/channels";
 import { cuentaComoAnuncio } from "@/lib/anuncios";
 import { SOURCE_LABELS, effectiveSource } from "@/server/contact-source";
@@ -34,6 +31,7 @@ export function textoSeguroExcel(texto: string): string {
 }
 
 export async function exportarExcel(filas: string[][]): Promise<Buffer> {
+  const { default: ExcelJS } = await import("exceljs");
   const libro = new ExcelJS.Workbook();
   const hoja = libro.addWorksheet("Contactos");
   hoja.addRow(cabeceras);
@@ -47,6 +45,10 @@ export async function exportarExcel(filas: string[][]): Promise<Buffer> {
 export class ErrorExportacionPdf extends Error {}
 
 export async function exportarPdf(filas: string[][]): Promise<Buffer> {
+  const [{ default: PDFDocument }, { openSync }] = await Promise.all([
+    import("pdfkit"),
+    import("fontkit"),
+  ]);
   const font = openSync(fuente);
   if (!("hasGlyphForCodePoint" in font)) {
     throw new Error("La fuente configurada no es una fuente individual");

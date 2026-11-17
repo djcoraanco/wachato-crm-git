@@ -131,8 +131,23 @@ export function ContactsClient() {
       params.set("format", formato);
       const res = await fetch(`/api/contacts/export?${params}`);
       if (!res.ok) {
-        const data = (await res.json()) as { error?: { message?: string } };
-        throw new Error(data.error?.message ?? "No se pudo exportar");
+        let mensaje = `No se pudo exportar (HTTP ${res.status}). Revisa los registros del servidor.`;
+        if (res.headers.get("content-type")?.includes("application/json")) {
+          try {
+            const data: unknown = await res.json();
+            if (data && typeof data === "object" && "error" in data &&
+                data.error && typeof data.error === "object" && "message" in data.error &&
+                typeof data.error.message === "string") {
+              mensaje = data.error.message;
+            }
+          } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+            console.warn("[contactos] respuesta de exportación JSON inválida", res.status);
+          }
+        } else {
+          console.warn("[contactos] respuesta de exportación no es JSON", res.status);
+        }
+        throw new Error(mensaje);
       }
       const url = URL.createObjectURL(await res.blob());
       const enlace = document.createElement("a");

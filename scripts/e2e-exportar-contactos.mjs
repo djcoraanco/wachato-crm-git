@@ -103,6 +103,11 @@ export async function probarExportacion({ context, anonimo, organizacionId, url,
         await page.getByLabel("Buscar contacto").fill("sin_coincidencias_e2e");
         await page.getByRole("button", { name: "Descargar PDF" }).click();
         await page.getByRole("alert").getByText("No hay contactos con esos filtros").waitFor();
+        await page.route("**/api/contacts/export?*", (route) =>
+          route.fulfill({ status: 500, contentType: "text/html", body: "<!DOCTYPE html><html><body>Error</body></html>" }));
+        await page.getByRole("button", { name: "Descargar Excel" }).click();
+        await page.getByRole("alert").getByText("No se pudo exportar (HTTP 500). Revisa los registros del servidor.").waitFor();
+        await page.unroute("**/api/contacts/export?*");
         await page.route("**/api/contacts/export?*", (route) => route.abort());
         await page.getByRole("button", { name: "Descargar Excel" }).click();
         await page.getByRole("alert").getByText("No se pudo conectar para exportar").waitFor();

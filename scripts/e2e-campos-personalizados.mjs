@@ -9,6 +9,7 @@ import path from "node:path";
 import { chromium, request } from "playwright";
 import postgres from "postgres";
 import { probarExportacion } from "./e2e-exportar-contactos.mjs";
+import { probarContactoManual } from "./e2e-contacto-manual.mjs";
 
 const base = new URL(process.env.WACHATO_TEST_BASE_URL ?? "");
 if (base.protocol !== "http:" || !["localhost", "127.0.0.1", "[::1]"].includes(base.hostname)) {
@@ -669,6 +670,7 @@ try {
   }
   if (process.env.WACHATO_TEST_DB_APP) {
     await probarExportacion({ context, anonimo, organizacionId, url, suffix });
+    if (process.env.WACHATO_TEST_CHROME) await probarContactoManual({ context, url, suffix });
   }
   console.log("OK: campos, archivos, validación, autenticación y permisos privado/equipo.");
 } finally {

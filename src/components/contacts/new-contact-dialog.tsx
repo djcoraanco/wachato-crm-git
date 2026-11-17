@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { SourceValue, StageDto } from "@/lib/types";
+import { digitsOnly } from "@/lib/search";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,7 +62,7 @@ export function NewContactDialog({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: name.trim(),
-        phone: phone.trim(),
+        phone: digitsOnly(phone),
         source,
         notes: notes.trim() || undefined,
         stageId: stageId || undefined,
