@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { getEnv } from "@/lib/env";
 import {
@@ -85,6 +86,16 @@ export function leerConfigDelBucket(): { cfg: ConfigBucket | null; problema: Pro
 /** La bandera pide el bucket (`MEDIA_STORE=bucket`). */
 export function bucketPedido(): boolean {
   return (getEnv().MEDIA_STORE ?? "").trim().toLowerCase() === "bucket";
+}
+
+export function huellaBucket(): string | null {
+  const cfg = configDelBucket();
+  if (!cfg) return null;
+  return createHash("sha256").update(JSON.stringify([cfg.endpoint, cfg.bucket])).digest("hex");
+}
+
+export function huellaDisco(): string {
+  return createHash("sha256").update(path.resolve(getEnv().MEDIA_DIR)).digest("hex");
 }
 
 /** Dónde se escribe hoy: el bucket solo si la bandera lo pide Y está configurado. */
@@ -187,6 +198,17 @@ export async function borrarMedia(organizationId: string, assetId: string): Prom
       console.warn(`[medios] no se pudo borrar ${llave} del bucket: ${err instanceof Error ? err.message.slice(0, 120) : "error"}`);
     });
   }
+}
+
+/** Para datos cuyo borrado debe confirmarse antes de retirar su registro. */
+export async function borrarMediaConfirmado(organizationId: string, assetId: string): Promise<void> {
+  const llave = llaveDeMedia(organizationId, assetId);
+  const cfg = configDelBucket();
+  if (bucketPedido() && !cfg) {
+    throw new Error("No se puede confirmar el borrado: el bucket no está configurado");
+  }
+  await rm(rutaEnDisco(organizationId, assetId), { force: true });
+  if (cfg) await borrarObjeto(cfg, llave);
 }
 
 /** Solo para tests. */

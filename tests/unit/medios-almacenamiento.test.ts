@@ -262,6 +262,17 @@ describe("037 — un bucket caído no pierde el archivo (D4)", () => {
     expect(llamadas).toEqual(["DELETE https://cuenta123.r2.cloudflarestorage.com/vocero-media/org_1/asset_4"]);
   });
 
+  it("el borrado confirmado informa un fallo del bucket para poder reintentarlo", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("fallo", { status: 503 })));
+    const m = await montar({ MEDIA_STORE: "bucket", ...CREDS });
+    await expect(m.borrarMediaConfirmado("org_1", "asset_1")).rejects.toThrow();
+  });
+
+  it("el borrado confirmado no finge éxito si se pidió un bucket sin configurar", async () => {
+    const m = await montar({ MEDIA_STORE: "bucket" });
+    await expect(m.borrarMediaConfirmado("org_1", "asset_1")).rejects.toThrow("bucket no está configurado");
+  });
+
   it("un endpoint que no es http(s) cuenta como bucket mal configurado", async () => {
     const m = await montar({ MEDIA_STORE: "bucket", ...CREDS, MEDIA_BUCKET_ENDPOINT: "ftp://algo" });
     expect(m.leerConfigDelBucket()).toMatchObject({ cfg: null, problema: "endpoint" });

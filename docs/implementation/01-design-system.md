@@ -44,6 +44,44 @@ Sin cambios de esquema, datos ni migraciones: las preferencias existentes siguen
 
 Permanecen warnings de Vite sobre imports dinámicos sin extensión en `tests/unit/version.test.ts` y mensajes de error esperados en pruebas de red/juez; no impidieron los gates.
 
-## Siguiente tarea
+## Tarea 1.2 — App Shell responsivo
 
-**1.2 — Adaptar el App Shell responsivo** (sidebar, topbar, navegación y layout). No iniciada.
+**Estado:** completada con autorización.  
+**Spec ligero:** [063 — Shell Wachato](../../specs/063-shell-wachato/spec.md),
+escrito después de la implementación y marcado como tal.
+
+- Lateral de 228 px en escritorio y cajón móvil; conserva navegación por rol y
+  banderas, contador real, marca, avisos, tema, instalación y cierre de sesión.
+- Cabecera con vista y fecha local; tarjeta con el nombre real de la
+  organización. La marca predeterminada es Wachato, sin alterar las marcas
+  personalizadas ni fabricar estados de producción.
+- Sin cambios de esquema, migraciones ni contratos públicos.
+- Archivos: `src/components/app-shell.tsx`, `src/components/app-nav.tsx`,
+  `src/app/(app)/layout.tsx`, `src/lib/nav.ts`, `src/server/branding.ts`,
+  `src/lib/branding.ts`, `src/components/brand-mark.tsx`,
+  `src/components/settings/branding-client.tsx`, `tests/unit/branding.test.ts`,
+  `tests/unit/brand-mark.test.ts`, `tests/unit/favicon.test.ts`,
+  `tests/unit/nav.test.ts`, `tests/unit/version.test.ts`,
+  `tests/e2e/us-diseno-tarjetas.md` y `scripts/e2e-diseno-061.mjs`.
+
+| Comando o prueba | Resultado |
+|---|---|
+| `pnpm typecheck` · `pnpm lint` · `pnpm build` | Correctos. |
+| `pnpm test` | Correcto, 123 archivos y 1397 pruebas. |
+| `scripts/e2e-diseno-061.mjs` | 38/38; app local real con PostgreSQL 16 temporal y mocks, escritorio y móvil. Marca Wachato y logo personalizado comprobados también en navegador. |
+| Cascarón en navegador con dependencias simuladas | Navegación, roles, contador, agenda, contraste claro/oscuro, error de red y cierre del menú correctos. |
+
+La app de producción no fue modificada ni se publicó un commit desde esta
+sesión. Para ejecutar el E2E se puede indicar el navegador del sistema con
+`E2E_BROWSER_PATH`; los datos de prueba se mantuvieron aislados.
+
+## Tarea 1.3 — Gates de Fase 1
+
+**Estado:** completada. Se ejecutaron secuencialmente `pnpm typecheck`,
+`pnpm lint`, `pnpm test` (123 archivos, 1397 pruebas) y `pnpm build`;
+todos pasaron. Continúan los avisos conocidos de Vite sobre imports dinámicos
+sin extensión.
+
+## Siguiente fase
+
+**Fase 2 — Core CRM Universal y modelo extendido.** Autorizada.

@@ -1,0 +1,1 @@
+ALTER TABLE "custom_field_file" ADD COLUMN "upload_pending" boolean DEFAULT false NOT NULL;

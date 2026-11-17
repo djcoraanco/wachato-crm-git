@@ -1,12 +1,16 @@
 import {
   boolean,
+  bigint,
   check,
+  date,
+  foreignKey,
   index,
   integer,
   jsonb,
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -200,8 +204,243 @@ export const contact = pgTable(
       t.channel,
       t.waIdentity
     ),
+    uniqueIndex("contact_org_id_uq").on(t.organizationId, t.id),
     index("contact_org_wa_user_id_idx").on(t.organizationId, t.waUserId),
     index("contact_org_name_idx").on(t.organizationId, t.name),
+  ]
+);
+
+export const contactProfile = pgTable(
+  "contact_profile",
+  {
+    contactId: text("contact_id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    firstName: text("first_name"),
+    lastName: text("last_name"),
+    identification: text("identification"),
+    phones: jsonb("phones").$type<string[]>().notNull().default([]),
+    emails: jsonb("emails").$type<string[]>().notNull().default([]),
+    avatarAssetId: text("avatar_asset_id"),
+    birthDate: date("birth_date"),
+    address: jsonb("address").$type<{
+      street?: string;
+      city?: string;
+      region?: string;
+      postalCode?: string;
+      country?: string;
+    }>(),
+    preferredChannel: text("preferred_channel", {
+      enum: ["whatsapp", "instagram", "messenger", "tiktok", "phone", "email"],
+    }),
+    consents: jsonb("consents").$type<Record<string, {
+      granted: boolean;
+      recordedAt: string;
+    }>>().notNull().default({}),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+      name: "contact_profile_org_contact_fk",
+    }).onDelete("cascade"),
+    index("contact_profile_org_contact_idx").on(t.organizationId, t.contactId),
+  ]
+);
+
+export const company = pgTable(
+  "company",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    taxId: text("tax_id"),
+    phone: text("phone"),
+    address: jsonb("address").$type<{
+      street?: string;
+      city?: string;
+      region?: string;
+      postalCode?: string;
+      country?: string;
+    }>(),
+    parentCompanyId: text("parent_company_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("company_org_id_uq").on(t.organizationId, t.id),
+    index("company_org_name_idx").on(t.organizationId, t.name),
+    index("company_org_parent_idx").on(t.organizationId, t.parentCompanyId),
+    foreignKey({
+      columns: [t.organizationId, t.parentCompanyId],
+      foreignColumns: [t.organizationId, t.id],
+      name: "company_org_parent_fk",
+    }),
+    check("company_not_own_parent", sql`${t.parentCompanyId} is null or ${t.parentCompanyId} <> ${t.id}`),
+  ]
+);
+
+export const companyContact = pgTable(
+  "company_contact",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    companyId: text("company_id").notNull(),
+    contactId: text("contact_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("company_contact_org_company_contact_uq").on(
+      t.organizationId,
+      t.companyId,
+      t.contactId
+    ),
+    index("company_contact_org_contact_idx").on(t.organizationId, t.contactId),
+    foreignKey({
+      columns: [t.organizationId, t.companyId],
+      foreignColumns: [company.organizationId, company.id],
+      name: "company_contact_org_company_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+      name: "company_contact_org_contact_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const customField = pgTable(
+  "custom_field",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    entity: text("entity", { enum: ["contacto", "empresa"] }).notNull(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind", {
+      enum: ["texto", "numero", "moneda", "fecha", "booleano", "select", "multiselect", "archivo", "json"],
+    }).notNull(),
+    visibility: text("visibility", { enum: ["privado", "equipo"] }).notNull().default("privado"),
+    options: jsonb("options").$type<string[]>().notNull().default([]),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("custom_field_org_id_entity_uq").on(t.organizationId, t.id, t.entity),
+    uniqueIndex("custom_field_org_entity_key_uq").on(t.organizationId, t.entity, t.key),
+    check("custom_field_entity_check", sql`${t.entity} in ('contacto', 'empresa')`),
+    check("custom_field_kind_check", sql`${t.kind} in ('texto', 'numero', 'moneda', 'fecha', 'booleano', 'select', 'multiselect', 'archivo', 'json')`),
+    check("custom_field_visibility_check", sql`${t.visibility} in ('privado', 'equipo')`),
+  ]
+);
+
+export const contactCustomValue = pgTable(
+  "contact_custom_value",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    fieldId: text("field_id").notNull(),
+    entity: text("entity").notNull().default("contacto"),
+    contactId: text("contact_id").notNull(),
+    value: jsonb("value").$type<unknown>().notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.fieldId, t.entity],
+      foreignColumns: [customField.organizationId, customField.id, customField.entity],
+      name: "contact_custom_value_field_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+      name: "contact_custom_value_contact_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("contact_custom_value_org_contact_field_uq").on(t.organizationId, t.contactId, t.fieldId),
+    index("contact_custom_value_gin_idx").using("gin", t.value),
+    check("contact_custom_value_entity_check", sql`${t.entity} = 'contacto'`),
+  ]
+);
+
+export const companyCustomValue = pgTable(
+  "company_custom_value",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    fieldId: text("field_id").notNull(),
+    entity: text("entity").notNull().default("empresa"),
+    companyId: text("company_id").notNull(),
+    value: jsonb("value").$type<unknown>().notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.fieldId, t.entity],
+      foreignColumns: [customField.organizationId, customField.id, customField.entity],
+      name: "company_custom_value_field_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [t.organizationId, t.companyId],
+      foreignColumns: [company.organizationId, company.id],
+      name: "company_custom_value_company_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("company_custom_value_org_company_field_uq").on(t.organizationId, t.companyId, t.fieldId),
+    index("company_custom_value_gin_idx").using("gin", t.value),
+    check("company_custom_value_entity_check", sql`${t.entity} = 'empresa'`),
+  ]
+);
+
+export const customFieldFile = pgTable(
+  "custom_field_file",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    size: integer("size").notNull(),
+    status: text("status", { enum: ["activo", "eliminando"] }).notNull().default("activo"),
+    uploadPending: boolean("upload_pending").notNull().default(false),
+    storageRecorded: boolean("storage_recorded").notNull().default(false),
+    bucketFingerprint: text("bucket_fingerprint"),
+    diskFingerprint: text("disk_fingerprint"),
+    fieldId: text("field_id"),
+    fieldEntity: text("field_entity", { enum: ["contacto", "empresa"] }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("custom_field_file_org_id_uq").on(t.organizationId, t.id),
+    index("custom_field_file_org_idx").on(t.organizationId, t.createdAt),
+    foreignKey({
+      columns: [t.organizationId, t.fieldId, t.fieldEntity],
+      foreignColumns: [customField.organizationId, customField.id, customField.entity],
+      name: "custom_field_file_field_fk",
+    }),
+    check("custom_field_file_field_check", sql`(${t.fieldId} is null) = (${t.fieldEntity} is null)`),
+    check("custom_field_file_size_check", sql`${t.size} > 0 and ${t.size} <= 10485760`),
+    check("custom_field_file_status_check", sql`${t.status} in ('activo', 'eliminando')`),
+  ]
+);
+
+export const customFieldFileGuard = pgTable(
+  "custom_field_file_guard",
+  {
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "restrict" }),
+    fileId: text("file_id").notNull(),
+  },
+  (t) => [
+    uniqueIndex("custom_field_file_guard_org_file_uq").on(t.organizationId, t.fileId),
   ]
 );
 
@@ -218,9 +457,13 @@ export const pipelineStage = pgTable(
     kind: text("kind", { enum: ["open", "won", "lost"] })
       .notNull()
       .default("open"),
+    metaEvent: text("meta_event"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
-  (t) => [index("stage_org_pos_idx").on(t.organizationId, t.position)]
+  (t) => [
+    uniqueIndex("stage_org_id_uq").on(t.organizationId, t.id),
+    index("stage_org_pos_idx").on(t.organizationId, t.position),
+  ]
 );
 
 export const lead = pgTable(
@@ -258,6 +501,7 @@ export const lead = pgTable(
   },
   (t) => [
     uniqueIndex("lead_contact_uq").on(t.contactId),
+    uniqueIndex("lead_org_id_uq").on(t.organizationId, t.id),
     index("lead_org_stage_idx").on(t.organizationId, t.stageId, t.position),
   ]
 );
@@ -345,6 +589,218 @@ export const leadStageEvent = pgTable(
       "lse_loss_reason_ck",
       sql`${t.toStageKind} <> 'lost' OR ${t.approximate} = true OR ${t.lossReason} IS NOT NULL`
     ),
+  ]
+);
+
+export const salesPipeline = pgTable(
+  "sales_pipeline",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("sales_pipeline_org_id_uq").on(t.organizationId, t.id),
+    uniqueIndex("sales_pipeline_org_name_uq").on(t.organizationId, t.name),
+  ]
+);
+
+export const salesPipelineStage = pgTable(
+  "sales_pipeline_stage",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    pipelineId: text("pipeline_id").notNull(),
+    name: text("name").notNull(),
+    position: integer("position").notNull(),
+    metaEvent: text("meta_event"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("sales_stage_org_pipeline_id_uq").on(t.organizationId, t.pipelineId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.pipelineId],
+      foreignColumns: [salesPipeline.organizationId, salesPipeline.id],
+      name: "sales_stage_pipeline_fk",
+    }),
+    index("sales_stage_org_pipeline_pos_idx").on(t.organizationId, t.pipelineId, t.position),
+  ]
+);
+
+export const salesDeal = pgTable(
+  "sales_deal",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    contactId: text("contact_id").notNull(),
+    pipelineId: text("pipeline_id"),
+    stageId: text("stage_id"),
+    legacyStageId: text("legacy_stage_id"),
+    title: text("title").notNull(),
+    amountCents: bigint("amount_cents", { mode: "number" }),
+    currency: text("currency"),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("sales_deal_org_id_uq").on(t.organizationId, t.id),
+    foreignKey({
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+      name: "sales_deal_contact_fk",
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.pipelineId, t.stageId],
+      foreignColumns: [salesPipelineStage.organizationId, salesPipelineStage.pipelineId, salesPipelineStage.id],
+      name: "sales_deal_stage_fk",
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.legacyStageId],
+      foreignColumns: [pipelineStage.organizationId, pipelineStage.id],
+      name: "sales_deal_legacy_stage_fk",
+    }),
+    check("sales_deal_stage_check", sql`(${t.pipelineId} is null and ${t.stageId} is null and ${t.legacyStageId} is not null) or (${t.pipelineId} is not null and ${t.stageId} is not null and ${t.legacyStageId} is null)`),
+    check("sales_deal_amount_check", sql`(${t.amountCents} is null and ${t.currency} is null) or (${t.amountCents} is not null and ${t.amountCents} >= 0 and ${t.amountCents} <= 9007199254740991 and ${t.currency} is not null)`),
+    index("sales_deal_org_pipeline_stage_idx").on(t.organizationId, t.pipelineId, t.stageId, t.position),
+  ]
+);
+
+export const salesDealEvent = pgTable(
+  "sales_deal_event",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    dealId: text("deal_id").notNull(),
+    fromStage: text("from_stage"),
+    toStage: text("to_stage").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.dealId],
+      foreignColumns: [salesDeal.organizationId, salesDeal.id],
+      name: "sales_deal_event_deal_fk",
+    }),
+    index("sales_deal_event_org_deal_idx").on(t.organizationId, t.dealId, t.createdAt),
+  ]
+);
+
+export const crmActivity = pgTable(
+  "crm_activity",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    contactId: text("contact_id"),
+    leadId: text("lead_id"),
+    dealId: text("deal_id"),
+    kind: text("kind", { enum: ["llamada", "reunion", "tarea", "nota"] }).notNull(),
+    content: text("content").notNull(),
+    dueAt: timestamp("due_at"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+      name: "crm_activity_contact_fk",
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.leadId],
+      foreignColumns: [lead.organizationId, lead.id],
+      name: "crm_activity_lead_fk",
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.dealId],
+      foreignColumns: [salesDeal.organizationId, salesDeal.id],
+      name: "crm_activity_deal_fk",
+    }),
+    check("crm_activity_kind_check", sql`${t.kind} in ('llamada', 'reunion', 'tarea', 'nota')`),
+    check("crm_activity_parent_check", sql`${t.contactId} is not null or ${t.leadId} is not null or ${t.dealId} is not null`),
+    index("crm_activity_org_contact_idx").on(t.organizationId, t.contactId, t.createdAt),
+    index("crm_activity_org_deal_idx").on(t.organizationId, t.dealId, t.createdAt),
+  ]
+);
+
+export const salesDealField = pgTable(
+  "sales_deal_field",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind", {
+      enum: ["texto", "numero", "moneda", "fecha", "booleano", "select", "multiselect", "archivo", "json"],
+    }).notNull(),
+    visibility: text("visibility", { enum: ["privado", "equipo"] }).notNull().default("privado"),
+    options: jsonb("options").$type<string[]>().notNull().default([]),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("sales_deal_field_org_id_uq").on(t.organizationId, t.id),
+    uniqueIndex("sales_deal_field_org_key_uq").on(t.organizationId, t.key),
+    check("sales_deal_field_kind_check", sql`${t.kind} in ('texto', 'numero', 'moneda', 'fecha', 'booleano', 'select', 'multiselect', 'archivo', 'json')`),
+    check("sales_deal_field_visibility_check", sql`${t.visibility} in ('privado', 'equipo')`),
+  ]
+);
+
+export const salesDealCustomValue = pgTable(
+  "sales_deal_custom_value",
+  {
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    fieldId: text("field_id").notNull(),
+    dealId: text("deal_id").notNull(),
+    value: jsonb("value").$type<unknown>().notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.fieldId],
+      foreignColumns: [salesDealField.organizationId, salesDealField.id],
+      name: "sales_deal_value_field_fk",
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.dealId],
+      foreignColumns: [salesDeal.organizationId, salesDeal.id],
+      name: "sales_deal_value_deal_fk",
+    }),
+    uniqueIndex("sales_deal_value_org_deal_field_uq").on(t.organizationId, t.dealId, t.fieldId),
+    index("sales_deal_value_gin_idx").using("gin", t.value),
+  ]
+);
+
+export const salesDealFieldFile = pgTable(
+  "sales_deal_field_file",
+  {
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    fieldId: text("field_id").notNull(),
+    fileId: text("file_id").notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.fieldId],
+      foreignColumns: [salesDealField.organizationId, salesDealField.id],
+      name: "sales_deal_file_field_fk",
+    }),
+    foreignKey({
+      columns: [t.organizationId, t.fileId],
+      foreignColumns: [customFieldFile.organizationId, customFieldFile.id],
+      name: "sales_deal_file_file_fk",
+    }),
+    uniqueIndex("sales_deal_file_org_file_uq").on(t.organizationId, t.fileId),
+    index("sales_deal_file_org_field_idx").on(t.organizationId, t.fieldId),
   ]
 );
 

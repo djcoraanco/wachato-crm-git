@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "custom_field_file_org_id_uq" ON "custom_field_file" USING btree ("organization_id","id");

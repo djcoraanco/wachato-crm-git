@@ -1,10 +1,10 @@
 /**
- * Self-test E2E — 061: el diseño de tarjetas (marco, riel de iconos, Bandeja
- * en tarjetas, burbujas y compositor en cápsula), en claro y en oscuro, a 1440
- * y a 390 px. Guion: tests/e2e/us-diseno-tarjetas.md.
+ * Self-test E2E — Bandeja y cascarón Wachato, en claro y oscuro, a 1440 y
+ * 390 px. Guion: tests/e2e/us-diseno-tarjetas.md.
  *
  * Requiere la app viva con WA_MOCK_ENABLED=true. `E2E_EMAIL` / `E2E_PASSWORD`
- * para entrar con una cuenta que ya exista. `CAPTURAS_DIR` para las capturas.
+ * para entrar con una cuenta que ya exista. `CAPTURAS_DIR` para las capturas;
+ * `E2E_BROWSER_PATH` permite usar un navegador Chromium del sistema.
  *
  * Uso: node --env-file=<env> scripts/e2e-diseno-061.mjs
  */
@@ -50,7 +50,9 @@ const contraste = (a, b) => {
 };
 
 mkdirSync(SALIDA, { recursive: true });
-const browser = await chromium.launch();
+const browser = await chromium.launch(
+  process.env.E2E_BROWSER_PATH ? { executablePath: process.env.E2E_BROWSER_PATH } : {}
+);
 const base = await browser.newContext();
 const errores = [];
 
@@ -91,14 +93,9 @@ try {
 
     const m = await p.evaluate(() => {
       const css = (el) => (el ? getComputedStyle(el) : null);
-      const marco = document.querySelector(".app-marco");
-      const tarjetas = [...document.querySelectorAll("[class*='tarjeta']")]
-        .filter((el) => el.getBoundingClientRect().width > 0)
-        .map((el) => ({ r: parseFloat(css(el).borderTopLeftRadius), w: Math.round(el.getBoundingClientRect().width) }));
-      const riel = document.querySelector('nav[aria-label="Secciones"].tarjeta');
-      const activa = riel?.querySelector('[aria-current="page"]');
-      const badge = riel?.querySelector('a[aria-label="Bandeja"] span');
-      const enlaces = [...(riel?.querySelectorAll("a[aria-label]") ?? [])].map((a) => a.getAttribute("aria-label"));
+      const lateral = document.querySelector("aside");
+      const activa = lateral?.querySelector('[aria-current="page"]');
+      const enlaces = [...(lateral?.querySelectorAll("a[href]") ?? [])].map((a) => a.textContent?.trim());
       const burbujaIn = document.querySelector(".burbuja-in");
       const burbujaOut = document.querySelector(".burbuja-out");
       const horaIn = burbujaIn?.querySelector("span.float-right .font-mono");
@@ -107,13 +104,9 @@ try {
       const caja = document.querySelector('textarea[placeholder^="Escribe"]');
       const capsula = caja?.parentElement;
       return {
-        marco: css(marco)?.backgroundImage ?? "",
-        tarjetas,
-        riel: riel ? Math.round(riel.getBoundingClientRect().width) : 0,
-        rielFondo: css(riel)?.backgroundColor ?? "",
+        lateral: lateral ? Math.round(lateral.getBoundingClientRect().width) : 0,
         activa: css(activa)?.backgroundColor ?? "",
         activaIcono: css(activa)?.color ?? "",
-        badge: badge?.textContent ?? "",
         enlaces,
         inFondo: css(burbujaIn)?.backgroundColor ?? "",
         inTexto: css(burbujaIn)?.color ?? "",
@@ -127,11 +120,10 @@ try {
         desborde: document.documentElement.scrollWidth > window.innerWidth,
       };
     });
-    ok("AC1 · el marco lleva su degradado", m.marco.includes("gradient"), m.marco.slice(0, 60));
-    ok("AC1 · al menos cinco tarjetas con radio de 24 px (riel, buscador, lista, cabecera, hilo, panel)", m.tarjetas.filter((t) => t.r >= 20).length >= 5, JSON.stringify(m.tarjetas));
-    ok("AC2 · el riel mide 76 px", m.riel === 76, String(m.riel));
-    ok("AC2 · trae las entradas del menú", ["Bandeja", "Pipeline", "Contactos", "Agente", "Laboratorio", "Resultados", "Ajustes"].every((e) => m.enlaces.includes(e)), JSON.stringify(m.enlaces));
-    ok("AC2 · la activa va rellena y su icono se lee", contraste(m.activa, m.rielFondo) >= 3 && contraste(m.activaIcono, m.activa) >= 4.5, `${m.activa} / ${m.activaIcono}`);
+    ok("AC1 · el lateral mide 228 px", m.lateral === 228, String(m.lateral));
+    ok("AC1 · trae las entradas del menú", ["Bandeja", "Pipeline", "Contactos", "Agente", "Laboratorio", "Resultados", "Ajustes"].every((e) => m.enlaces.some((texto) => texto?.startsWith(e))), JSON.stringify(m.enlaces));
+    ok("AC1 · la entrada activa se lee", contraste(m.activaIcono, m.activa) >= 4.5, `${m.activa} / ${m.activaIcono}`);
+    ok("AC1 · la cabecera muestra la vista", await p.locator("header").first().getByText("Bandeja", { exact: true }).isVisible());
     ok("AC3 · el cliente en burbuja de alto contraste con su texto", contraste(m.inTexto, m.inFondo) >= 7, `${m.inTexto} sobre ${m.inFondo}`);
     ok("AC3 · la hora dentro de la burbuja del cliente se lee (AA)", contraste(m.inHora, m.inFondo) >= 4.5, `${m.inHora} sobre ${m.inFondo}`);
     ok("AC3 · el enlace dentro de la burbuja del cliente se lee (AA)", contraste(m.inEnlace, m.inFondo) >= 4.5, `${m.inEnlace} sobre ${m.inFondo}`);
@@ -140,19 +132,14 @@ try {
     ok("AC4 · la caja es una cápsula", m.capsulaRadio >= 20, String(m.capsulaRadio));
     ok("sin desplazamiento horizontal", !m.desborde);
 
-    const cuenta = p.getByRole("button", { name: "Tu cuenta" });
-    await cuenta.click();
-    const menu = p.getByRole("dialog", { name: "Tu cuenta" });
-    await menu.waitFor({ timeout: 5000 });
+    const menu = p.locator("aside");
     ok(
-      "AC2 · el menú de la cuenta trae tema, cerrar sesión y versión",
-      (await menu.getByText("Tema").count()) === 1 &&
+      "AC2 · la cuenta conserva tema, cerrar sesión y versión",
+      (await menu.getByRole("button", { name: /^Tema:/ }).count()) === 1 &&
         (await menu.getByRole("button", { name: "Cerrar sesión" }).count()) === 1 &&
         /v\d+\.\d+/.test(await menu.innerText())
     );
     await p.screenshot({ path: `${SALIDA}/061-cuenta-${tema}.png` });
-    await p.keyboard.press("Escape");
-    ok("Escape cierra el menú de la cuenta", (await menu.count()) === 0);
     await p.screenshot({ path: `${SALIDA}/061-bandeja-1440-${tema}.png` });
     await ctx.close();
 
@@ -163,13 +150,15 @@ try {
     t.on("pageerror", (e) => errores.push(e.message));
     await t.goto(`${BASE}/inbox`);
     await t.getByText(NOMBRE).first().waitFor({ timeout: 20000 });
-    ok("AC5 · en el teléfono no hay riel", !(await t.locator('nav[aria-label="Secciones"].tarjeta').isVisible()));
+    ok("AC5 · el lateral está cerrado en el teléfono", !(await t.locator("aside").isVisible()));
     await t.getByRole("button", { name: "Abrir el menú" }).click();
     await espera(300);
     ok("AC5 · el cajón del menú abre", await t.getByRole("link", { name: /Pipeline/ }).first().isVisible());
     ok("AC5 · sin desplazamiento horizontal", await t.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await t.screenshot({ path: `${SALIDA}/061-cajon-390-${tema}.png` });
-    await t.locator("aside").getByRole("button", { name: "Cerrar el menú" }).click();
+    await t.keyboard.press("Escape");
+    await t.locator("aside").waitFor({ state: "hidden" });
+    ok("AC5 · Escape cierra el menú", !(await t.locator("aside").isVisible()));
     await t.getByText(NOMBRE).first().click();
     await t.locator("[data-message-id]").first().waitFor({ timeout: 15000 });
     await espera(600);

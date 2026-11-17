@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appNavGroups,
   isNavActive,
+  navTitle,
   SETTINGS_ITEM,
   settingsSections,
 } from "@/lib/nav";
@@ -63,6 +64,14 @@ describe("barra lateral agrupada", () => {
     expect(isNavActive("/inboxes", "/inbox")).toBe(false);
     expect(isNavActive("/settings/ai", "/settings")).toBe(true);
     expect(isNavActive("/settings/ai", "/agent")).toBe(false);
+  });
+
+  it("la cabecera usa los nombres reales de las vistas y sus ajustes", () => {
+    expect(navTitle("/inbox/cv_123", { role: "member" })).toBe("Bandeja");
+    expect(navTitle("/bookings", { agenda: true })).toBe("Citas");
+    expect(navTitle("/settings/instagram", {})).toBe("Instagram");
+    expect(navTitle("/settings", {})).toBe("Ajustes");
+    expect(navTitle("/desconocido", {})).toBe("CRM");
   });
 });
 

@@ -45,7 +45,7 @@ export type Branding = {
 };
 
 export const DEFAULT_BRANDING: Branding = {
-  name: "Vocero",
+  name: "Wachato",
   // Turquesa de Wachato. Cada organización puede sustituirlo en Marca.
   accent: "#00c4c0",
   currency: DEFAULT_CURRENCY,

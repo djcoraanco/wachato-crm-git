@@ -172,6 +172,7 @@ export async function reportStageChange(input: {
   contactId: string;
   toStageId: string;
   toStageKind: "open" | "won" | "lost";
+  metaEvent?: string | null;
 }): Promise<void> {
   if (!atribucionEnabled()) return;
 
@@ -181,7 +182,7 @@ export async function reportStageChange(input: {
       settings?.qualifiedStageId != null &&
       settings.qualifiedStageId === input.toStageId;
     const isWon = input.toStageKind === "won";
-    if (!isQualified && !isWon) return;
+    if (!isQualified && !isWon && !input.metaEvent) return;
 
     const db = getDb();
     // La conversación REAL del contacto (índice único parcial: una por
@@ -224,17 +225,53 @@ export async function reportStageChange(input: {
         PURCHASE_EVENT,
         purchaseCustomData(row)
       );
-      return;
+    } else if (isQualified) {
+      await emitConversion(
+        input.organizationId,
+        row.conversationId,
+        QUALIFIED_EVENT,
+        { lead_stage: "qualified" }
+      );
     }
-
-    await emitConversion(
-      input.organizationId,
-      row.conversationId,
-      QUALIFIED_EVENT,
-      { lead_stage: "qualified" }
-    );
+    if (input.metaEvent) {
+      await emitConversion(
+        input.organizationId,
+        row.conversationId,
+        input.metaEvent,
+        input.metaEvent === PURCHASE_EVENT ? purchaseCustomData(row) : undefined
+      );
+    }
   } catch (err) {
     console.warn(`[capi] reportStageChange(${input.leadId}) falló: ${err}`);
+  }
+}
+
+/** Reporta el evento configurado para un trato tras confirmar su transacción. */
+export async function reportDealStageEvent(input: {
+  organizationId: string;
+  contactId: string;
+  eventName: string | null;
+  amountCents: number | null;
+  currency: string | null;
+}): Promise<void> {
+  if (!atribucionEnabled() || !input.eventName) return;
+  try {
+    const [conversation] = await getDb().select({ id: schema.conversation.id })
+      .from(schema.conversation)
+      .where(scoped(schema.conversation.organizationId, input.organizationId,
+        eq(schema.conversation.contactId, input.contactId),
+        eq(schema.conversation.isTest, false),
+        eq(schema.conversation.channel, "whatsapp")))
+      .limit(1);
+    if (!conversation) return;
+    await emitConversion(
+      input.organizationId,
+      conversation.id,
+      input.eventName,
+      input.eventName === PURCHASE_EVENT ? purchaseCustomData(input) : undefined
+    );
+  } catch (err) {
+    console.warn(`[capi] reportDealStageEvent falló: ${err}`);
   }
 }
 

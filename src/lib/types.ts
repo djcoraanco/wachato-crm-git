@@ -121,6 +121,7 @@ export type StageDto = {
   name: string;
   position: number;
   kind: "open" | "won" | "lost";
+  metaEvent?: string | null;
 };
 
 /** Un dato de la ficha. Escalar a propósito: ver `server/bot/ficha`. */

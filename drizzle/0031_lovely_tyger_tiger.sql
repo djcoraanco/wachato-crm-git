@@ -1,0 +1,2 @@
+ALTER TABLE "custom_field_file" ADD COLUMN "status" text DEFAULT 'activo' NOT NULL;--> statement-breakpoint
+ALTER TABLE "custom_field_file" ADD CONSTRAINT "custom_field_file_status_check" CHECK ("custom_field_file"."status" in ('activo', 'eliminando'));

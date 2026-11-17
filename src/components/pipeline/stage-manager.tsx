@@ -10,10 +10,12 @@ import { Input } from "@/components/ui/input";
 /** Gestión de etapas: renombrar, reordenar, agregar, eliminar (con reasignación). */
 export function StageManager({
   stages,
+  eventosMeta,
   onClose,
   onChanged,
 }: {
   stages: StageDto[];
+  eventosMeta: readonly string[] | null;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -21,14 +23,61 @@ export function StageManager({
   const [deleting, setDeleting] = useState<StageDto | null>(null);
   const [moveTo, setMoveTo] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [guardandoEvento, setGuardandoEvento] = useState<string | null>(null);
 
-  async function rename(stage: StageDto, name: string) {
-    if (!name.trim() || name === stage.name) return;
-    await fetch(`/api/pipeline/stages/${stage.id}`, {
+  async function solicitar(url: string, opciones?: RequestInit): Promise<boolean> {
+    setError(null);
+    try {
+      const res = await fetch(url, opciones);
+      if (!res.ok) {
+        const datos = await res.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(datos?.error?.message ?? "No se pudo actualizar la etapa");
+      }
+      return true;
+    } catch (err) {
+      setError(err instanceof TypeError ? "No se pudo conectar para actualizar la etapa"
+        : err instanceof Error ? err.message : "No se pudo actualizar la etapa");
+      return false;
+    }
+  }
+
+  async function cambiarEvento(stage: StageDto, evento: string) {
+    setError(null);
+    setGuardandoEvento(stage.id);
+    try {
+      const res = await fetch(`/api/pipeline/stages/${stage.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ metaEvent: evento || null }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        throw new Error(data?.error?.message ?? "No se pudo guardar el evento");
+      }
+      onChanged();
+    } catch (err) {
+      setError(err instanceof TypeError ? "No se pudo conectar para guardar el evento"
+        : err instanceof Error ? err.message : "No se pudo guardar el evento");
+    } finally {
+      setGuardandoEvento(null);
+    }
+  }
+
+  async function rename(stage: StageDto, input: HTMLInputElement) {
+    const name = input.value;
+    if (!name.trim()) {
+      input.value = stage.name;
+      return;
+    }
+    if (name === stage.name) return;
+    const guardado = await solicitar(`/api/pipeline/stages/${stage.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
-    }).catch(() => null);
+    });
+    if (!guardado) input.value = stage.name;
     onChanged();
   }
 
@@ -38,28 +87,28 @@ export function StageManager({
     const swap = sorted[idx + dir];
     if (!swap) return;
     await Promise.all([
-      fetch(`/api/pipeline/stages/${stage.id}`, {
+      solicitar(`/api/pipeline/stages/${stage.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ position: swap.position }),
       }),
-      fetch(`/api/pipeline/stages/${swap.id}`, {
+      solicitar(`/api/pipeline/stages/${swap.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ position: stage.position }),
       }),
-    ]).catch(() => null);
+    ]);
     onChanged();
   }
 
   async function add() {
     if (!newName.trim()) return;
-    await fetch("/api/pipeline/stages", {
+    const guardado = await solicitar("/api/pipeline/stages", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: newName.trim() }),
-    }).catch(() => null);
-    setNewName("");
+    });
+    if (guardado) setNewName("");
     onChanged();
   }
 
@@ -69,13 +118,21 @@ export function StageManager({
       ? `/api/pipeline/stages/${stage.id}?moveTo=${moveToId}`
       : `/api/pipeline/stages/${stage.id}`;
     const res = await fetch(url, { method: "DELETE" }).catch(() => null);
-    if (!res) return;
+    if (!res) {
+      setError("No se pudo conectar para eliminar la etapa");
+      return;
+    }
     if (res.status === 409) {
       const data = (await res.json().catch(() => null)) as {
         error?: { code?: string; message?: string };
       } | null;
       if (data?.error?.code === "stage_has_leads") {
         setDeleting(stage);
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        setError(data?.error?.message ?? "No se pudo eliminar la etapa");
         return;
       }
       setError(data?.error?.message ?? "No se pudo eliminar");
@@ -98,12 +155,19 @@ export function StageManager({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-4 font-semibold">Etapas del pipeline</h3>
+        {eventosMeta && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            Al entrar en una etapa se reporta el evento elegido para conversaciones
+            atribuibles de WhatsApp. Meta recibe cada tipo de evento una sola vez
+            por conversación; los eventos existentes de ganado y calificado se conservan.
+          </p>
+        )}
         <ul className="space-y-2">
           {sorted.map((s, i) => (
-            <li key={s.id} className="flex items-center gap-2">
+            <li key={s.id} className="flex flex-wrap items-center gap-2">
               <Input
                 defaultValue={s.name}
-                onBlur={(e) => void rename(s, e.target.value)}
+                onBlur={(e) => void rename(s, e.currentTarget)}
                 className="flex-1"
               />
               {s.kind !== "open" ? (
@@ -138,6 +202,22 @@ export function StageManager({
               >
                 <ArrowDown className="h-4 w-4" />
               </Button>
+              {eventosMeta && (
+                <label className="w-full text-sm text-muted-foreground">
+                  Evento de Meta al entrar en {s.name}
+                  <select
+                    className="mt-1 h-9 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                    value={s.metaEvent ?? ""}
+                    disabled={guardandoEvento === s.id}
+                    onChange={(e) => void cambiarEvento(s, e.target.value)}
+                  >
+                    <option value="">Sin evento adicional</option>
+                    {eventosMeta.map((evento) => (
+                      <option key={evento} value={evento}>{evento}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </li>
           ))}
         </ul>

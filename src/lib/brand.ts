@@ -30,8 +30,7 @@ export const BRAND_CYAN_ON_TILE = "#3fdcff";
 /**
  * ¿Esta instancia se llama Vocero? Solo entonces se dibuja el logo: una
  * agencia que rebautizó el CRM para su cliente no debe ver la "v" de otro
- * producto en su barra lateral ni en su pestaña. El nombre por defecto es
- * "Vocero", así que una instancia sin configurar la ve de inmediato.
+ * producto en su barra lateral ni en su pestaña.
  */
 export function isVoceroName(name: string): boolean {
   return name.trim().toLowerCase() === "vocero";

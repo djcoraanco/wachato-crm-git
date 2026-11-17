@@ -4,6 +4,7 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
 import { getDb, schema } from "@/lib/db";
+import { scoped } from "@/lib/db/tenant";
 import { getEnv } from "@/lib/env";
 import { AUTH_RATE_LIMIT, checkRateLimit, clientIp } from "@/lib/rate-limit";
 import {
@@ -62,7 +63,31 @@ function createAuth() {
       requireEmailVerification: false,
       minPasswordLength: 8,
     },
-    plugins: [organization({ creatorRole: "owner" })],
+    plugins: [organization({
+      creatorRole: "owner",
+      organizationHooks: {
+        beforeDeleteOrganization: async ({ organization: actual }) => {
+          const [archivo] = await getDb().select({ id: schema.customFieldFile.id })
+            .from(schema.customFieldFile)
+            .where(scoped(schema.customFieldFile.organizationId, actual.id))
+            .limit(1);
+          if (archivo) {
+            throw new APIError("CONFLICT", {
+              message: "Elimina primero los archivos de campos personalizados de la organización",
+            });
+          }
+          const [guarda] = await getDb().select({ id: schema.customFieldFileGuard.fileId })
+            .from(schema.customFieldFileGuard)
+            .where(scoped(schema.customFieldFileGuard.organizationId, actual.id))
+            .limit(1);
+          if (guarda) {
+            throw new APIError("CONFLICT", {
+              message: "Hay archivos pendientes de eliminar en la organización",
+            });
+          }
+        },
+      },
+    })],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         // Rate limit por IP en login/registro (FR-062): 10 / 10 min → 429.

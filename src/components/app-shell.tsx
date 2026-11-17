@@ -7,17 +7,17 @@ import type { Branding } from "@/lib/branding";
 import type { Apariencia } from "@/lib/temas";
 import type { ResolvedCommit } from "@/lib/version";
 import { AppNav } from "@/components/app-nav";
-import { BrandLogo } from "@/components/brand-mark";
 import { cn } from "@/lib/utils";
 import { BandaSinConexion } from "@/components/banda-sin-conexion";
 import { AtajosGlobales } from "@/components/atajos-globales";
+import { navTitle } from "@/lib/nav";
 
 /**
  * Cascarón de la app en dos modos:
  *
- * - Escritorio (lg+): el panel lateral es una columna fija, como siempre.
+ * - Escritorio (lg+): el panel lateral es una columna fija de 228 px.
  * - Móvil/tableta: el lateral sale de la izquierda como cajón sobre un velo,
- *   y arriba queda una barra azul marino con el hamburguesa y la marca. El
+ *   y arriba queda la barra con el menú y el título de la vista. El
  *   cajón se cierra solo al navegar (el `pathname` cambia) y con Escape.
  *
  * La altura usa `100dvh` (no `100vh`) porque en el navegador móvil la barra de
@@ -26,6 +26,7 @@ import { AtajosGlobales } from "@/components/atajos-globales";
  */
 export function AppShell({
   branding,
+  organizationName,
   userName,
   role,
   apariencia,
@@ -36,6 +37,7 @@ export function AppShell({
   children,
 }: {
   branding: Branding;
+  organizationName: string | null;
   userName: string;
   role: string;
   apariencia: Apariencia;
@@ -59,6 +61,13 @@ export function AppShell({
   const pathname = usePathname();
   const esBandeja = pathname === "/inbox" || pathname.startsWith("/inbox/");
   const [navOpen, setNavOpen] = useState(false);
+  const [fecha, setFecha] = useState("");
+
+  useEffect(() => {
+    setFecha(new Intl.DateTimeFormat("es", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    }).format(new Date()));
+  }, []);
 
   // Navegar = cerrar el cajón. Sin esto, tocar "Pipeline" deja el velo encima
   // de la pantalla recién cargada.
@@ -76,9 +85,7 @@ export function AppShell({
   }, [navOpen]);
 
   return (
-    // 061 · D1 — El marco: en escritorio la app son tarjetas separadas sobre
-    // un fondo suave; en el teléfono la pantalla entera es la tarjeta.
-    <div className="app-marco app-escala flex overflow-hidden lg:gap-[var(--hueco)] lg:p-[var(--hueco)]">
+    <div className="app-escala flex overflow-hidden bg-background">
       {navOpen && (
         <button
           aria-label="Cerrar el menú"
@@ -90,6 +97,7 @@ export function AppShell({
 
       <AppNav
         branding={branding}
+        organizationName={organizationName}
         commit={commit}
         userName={userName}
         role={role}
@@ -100,17 +108,20 @@ export function AppShell({
         onClose={() => setNavOpen(false)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col bg-background lg:gap-[var(--hueco)] lg:bg-transparent">
-        <header className="flex h-12 shrink-0 items-center gap-1.5 border-b bg-background px-2 text-foreground lg:hidden">
+      <div className="flex min-w-0 flex-1 flex-col bg-background">
+        <header className="flex min-h-14 shrink-0 items-center gap-3 border-b bg-background px-3 text-foreground lg:px-5">
           <button
             onClick={() => setNavOpen(true)}
             aria-label="Abrir el menú"
             aria-expanded={navOpen}
-            className="rounded-md p-2 text-text-2 hover:bg-accent hover:text-foreground"
+            className="rounded-md p-2 text-text-2 hover:bg-accent hover:text-foreground lg:hidden"
           >
             <Menu className="h-5 w-5" strokeWidth={1.8} />
           </button>
-          <BrandLogo branding={branding} className="min-w-0" />
+          <span className="min-w-0 truncate font-display text-xl font-[900]">
+            {navTitle(pathname, { agenda, role })}
+          </span>
+          <span className="ml-auto hidden text-sm capitalize text-text-2 sm:block">{fecha}</span>
         </header>
 
         {aviso}
@@ -119,12 +130,10 @@ export function AppShell({
         {/* 055 — Ctrl+K y «?» desde cualquier pantalla. */}
         <AtajosGlobales agenda={agenda} role={role} />
 
-        {/* La Bandeja trae sus propias tarjetas (lista, hilo, panel); el resto
-            de las pantallas vive en una sola. */}
         <main
           className={cn(
             "min-h-0 min-w-0 flex-1 overflow-hidden bg-background",
-            esBandeja ? "lg:bg-transparent" : "lg:tarjeta"
+            esBandeja && "lg:bg-transparent"
           )}
         >
           {children}

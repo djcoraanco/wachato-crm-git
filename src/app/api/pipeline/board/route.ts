@@ -3,6 +3,8 @@ import { withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { getBranding } from "@/server/branding";
+import { META_BUSINESS_MESSAGING_EVENTS } from "@/lib/meta/capi";
+import { atribucionEnabled } from "@/server/attribution/flag";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +42,13 @@ export const GET = withAuth(async (session) => {
 
   return Response.json({
     currency,
+    eventosMeta: atribucionEnabled() ? META_BUSINESS_MESSAGING_EVENTS : null,
     stages: stages.map((s) => ({
       id: s.id,
       name: s.name,
       position: s.position,
       kind: s.kind,
+      metaEvent: atribucionEnabled() ? s.metaEvent : null,
     })),
     leads: leads.map((r) => ({
       id: r.lead.id,

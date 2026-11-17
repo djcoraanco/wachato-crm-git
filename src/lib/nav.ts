@@ -153,3 +153,20 @@ export function settingsSections({
 export function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** Título de la sección actual, usando los mismos nombres que la navegación. */
+export function navTitle(pathname: string, options: { agenda?: boolean; role?: string | null }): string {
+  const ajustes = settingsSections({
+    agenda: options.agenda,
+    atribucion: true,
+    instagram: true,
+    messenger: true,
+    tiktok: true,
+  }).flatMap((section) => section.links);
+  const enlaces = [
+    ...ajustes,
+    ...appNavGroups(options).flatMap((group) => group.items),
+    SETTINGS_ITEM,
+  ];
+  return enlaces.find((item) => isNavActive(pathname, item.href))?.label ?? "CRM";
+}

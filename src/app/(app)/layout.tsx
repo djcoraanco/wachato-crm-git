@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { getAuth } from "@/lib/auth";
 import { getSessionOrNull } from "@/lib/auth/session";
 import { aparienciaActual } from "@/server/apariencia";
-import { getBranding } from "@/server/branding";
+import { getBrandingContext } from "@/server/branding";
 import { AppShell } from "@/components/app-shell";
 import { resolveCommit } from "@/lib/version";
 import { agendaEnabled } from "@/server/agenda/flag";
@@ -17,7 +17,7 @@ export default async function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await getSessionOrNull();
   if (!session) redirect("/login");
-  const branding = await getBranding(session.organizationId);
+  const { branding, organizationName } = await getBrandingContext(session.organizationId);
   const authSession = await getAuth().api.getSession({
     headers: await headers(),
   });
@@ -31,6 +31,7 @@ export default async function AppLayout({
   return (
     <AppShell
       branding={branding}
+      organizationName={organizationName}
       userName={authSession?.user.name ?? "Usuario"}
       role={session.role}
       apariencia={apariencia}

@@ -74,6 +74,10 @@ export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
         `Tiene una cita agendada para el ${FECHA_DE_CITA.format(resultado.cuando)}. Cancélala en Citas antes de eliminar.`
       );
     }
+    if (resultado.motivo === "datos_comerciales") {
+      return apiError(409, "datos_comerciales",
+        "El contacto tiene tratos, actividades, empresas o campos personalizados. Retira esos datos antes de eliminarlo.");
+    }
     return apiError(404, "not_found", "Conversación no encontrada");
   }
 

@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AlertTriangle, Bell, BellOff, LogOut, X } from "lucide-react";
-import { BrandTile } from "@/components/brand-mark";
 import { BotonInstalar } from "@/components/pwa";
 import { BotonActivarAvisos } from "@/components/activar-avisos";
 import { limpiarBorradores } from "@/lib/borradores";
@@ -61,6 +60,7 @@ export function navItemClass(active: boolean) {
 
 export function AppNav({
   branding,
+  organizationName,
   userName,
   role,
   apariencia,
@@ -71,6 +71,7 @@ export function AppNav({
   onClose,
 }: {
   branding: Branding;
+  organizationName: string | null;
   userName: string;
   role: string;
   apariencia: Apariencia;
@@ -218,7 +219,6 @@ export function AppNav({
       )}
     </button>
   );
-  const versionTitulo = versionTitle(branding.name, version);
   const versionTexto = (
     <>
       {versionLabel(version.commit)}
@@ -232,20 +232,6 @@ export function AppNav({
   );
 
   return (
-    <>
-    <Riel
-      branding={branding}
-      groups={groups}
-      pathname={pathname}
-      unread={unread}
-      userName={userName}
-      role={role}
-      apariencia={apariencia}
-      campana={campana}
-      version={versionTexto}
-      versionTitulo={versionTitulo}
-      onSalir={() => void salir()}
-    />
     <aside
       // Móvil: cajón que se desliza desde la izquierda (siempre montado, así
       // la transición corre en ambos sentidos). Escritorio: columna fija.
@@ -257,13 +243,11 @@ export function AppNav({
         // nombre del usuario, el nombre white-label en BrandLogo) hereda el
         // color YA CALCULADO en <body> con el tema de la página, no el de
         // `.nav-dark` — y un texto oscuro sobre este fondo oscuro se pierde.
-        // 061 — Solo el teléfono: en escritorio el menú es el riel de iconos
-        // (abajo). Ya no lleva la barra azul marino: los neutros del tema.
-        "fixed inset-y-0 left-0 z-50 flex w-[17rem] shrink-0 flex-col overflow-y-auto rounded-r-[var(--radio-tarjeta)] bg-background px-3 pb-3.5 pt-4 text-foreground transition-[transform,visibility] duration-200 lg:hidden",
+        "fixed inset-y-0 left-0 z-50 flex w-[17rem] shrink-0 flex-col overflow-y-auto rounded-r-[var(--radio-tarjeta)] bg-background px-3 pb-3.5 pt-4 text-foreground transition-[transform,visibility] duration-200 lg:static lg:visible lg:w-[228px] lg:translate-x-0 lg:rounded-none lg:border-r lg:shadow-none",
         open ? "visible translate-x-0 shadow-pop" : "invisible -translate-x-full"
       )}
     >
-      {/* Marca: el logo de Vocero o, white-label, la inicial y el nombre */}
+      {/* La marca configurada por la organización. */}
       <div className="mb-5 flex items-start gap-1.5 px-2 pt-0.5">
         {/* En móvil el cajón necesita su propio cierre: el velo no siempre es
             alcanzable con el pulgar. */}
@@ -274,10 +258,10 @@ export function AppNav({
         >
           <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
-        <div className="min-w-0">
+        <Link href="/inbox" className="min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <BrandLogo branding={branding} />
           <span className="kicker mt-2 block">{kicker}</span>
-        </div>
+        </Link>
       </div>
 
       {/* Grupos con encabezado pequeño, sin letras ni colapsables: se leen
@@ -306,28 +290,32 @@ export function AppNav({
       {/* Ajustes va abajo, solo: no es trabajo del día. */}
       {renderItem(SETTINGS_ITEM)}
 
-      <div className="mt-1 flex items-center gap-2.5 rounded-sm px-2.5 py-2 hover:bg-accent">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand-text">
-          {initials(userName)}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold">{userName}</span>
-          <span className="block truncate text-[11px] text-text-3">
-            {role === "owner" ? "Propietario" : "Equipo"} · En línea
+      <div className="mt-3 rounded-xl border p-2.5">
+        <span className="kicker block pb-2">{organizationName ? "Negocio" : "Marca"}</span>
+        <span className="block truncate text-[13px] font-semibold">{organizationName ?? branding.name}</span>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand-text">
+            {initials(userName)}
           </span>
-        </span>
-        <span className="flex shrink-0 items-center">
-          {campana}
-          <ThemeToggle initial={apariencia} />
-          <button
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
-            className="rounded p-1 text-text-3 hover:text-foreground"
-            onClick={() => void salir()}
-          >
-            <LogOut className="h-4 w-4" strokeWidth={1.7} />
-          </button>
-        </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-semibold">{userName}</span>
+            <span className="block truncate text-[11px] text-text-3">
+              {role === "owner" ? "Propietario" : "Equipo"}
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center">
+            {campana}
+            <ThemeToggle initial={apariencia} />
+            <button
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              className="rounded p-1 text-text-3 hover:text-foreground"
+              onClick={() => void salir()}
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.7} />
+            </button>
+          </span>
+        </div>
       </div>
 
       {/* Qué versión está corriendo. Discreta pero siempre visible: la duda
@@ -350,149 +338,5 @@ export function AppNav({
         {versionTexto}
       </p>
     </aside>
-    </>
-  );
-}
-
-/**
- * 061 · D2 — El riel de iconos del escritorio: la marca arriba, las mismas
- * entradas del menú (según rol y banderas) como botones redondos, y abajo la
- * campana, Ajustes y la cuenta. La activa va rellena con la tinta del tema.
- */
-function Riel({
-  branding,
-  groups,
-  pathname,
-  unread,
-  userName,
-  role,
-  apariencia,
-  campana,
-  version,
-  versionTitulo,
-  onSalir,
-}: {
-  branding: Branding;
-  groups: ReturnType<typeof appNavGroups>;
-  pathname: string;
-  unread: number;
-  userName: string;
-  role: string;
-  apariencia: Apariencia;
-  campana: React.ReactNode;
-  version: React.ReactNode;
-  versionTitulo: string;
-  onSalir: () => void;
-}) {
-  const [cuenta, setCuenta] = useState(false);
-  const cuentaRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!cuenta) return;
-    const fuera = (e: MouseEvent) => {
-      if (!cuentaRef.current?.contains(e.target as Node)) setCuenta(false);
-    };
-    const escape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCuenta(false);
-    };
-    document.addEventListener("mousedown", fuera);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", fuera);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [cuenta]);
-
-  const boton = (item: NavItem) => {
-    const active = isNavActive(pathname, item.href);
-    return (
-      <Link
-        key={item.href}
-        href={item.href}
-        aria-label={item.label}
-        title={item.label}
-        aria-current={active ? "page" : undefined}
-        className={cn(
-          "relative flex h-11 w-11 items-center justify-center rounded-full border transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          active
-            ? "border-transparent bg-riel-activo text-riel-activo-texto"
-            : "border-border-strong text-text-2 hover:bg-accent hover:text-foreground"
-        )}
-      >
-        <item.icon className="h-[19px] w-[19px]" strokeWidth={1.8} aria-hidden />
-        {item.badge && unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-brand-fg">
-            {unread > 99 ? "99+" : unread}
-          </span>
-        )}
-      </Link>
-    );
-  };
-
-  return (
-    <nav
-      aria-label="Secciones"
-      className="tarjeta hidden w-[76px] shrink-0 flex-col items-center py-4 lg:flex"
-    >
-      <Link href="/inbox" aria-label={branding.name} title={branding.name} className="rounded-[14px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <BrandTile branding={branding} className="h-11 w-11 rounded-[14px] text-[18px]" />
-      </Link>
-      <div className="mt-7 flex min-h-0 flex-1 flex-col items-center gap-2.5 overflow-y-auto">
-        {groups.map((g, i) => (
-          <div key={g.title ?? i} className="flex flex-col items-center gap-2.5">
-            {i > 0 && <span className="my-0.5 h-px w-6 bg-border" aria-hidden />}
-            {g.items.map(boton)}
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 flex flex-col items-center gap-2.5">
-        <span className="flex h-11 w-11 items-center justify-center">{campana}</span>
-        {boton(SETTINGS_ITEM)}
-        <div ref={cuentaRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setCuenta((v) => !v)}
-            aria-label="Tu cuenta"
-            aria-expanded={cuenta}
-            aria-haspopup="dialog"
-            title={userName}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-riel-activo text-[13px] font-bold text-riel-activo-texto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {initials(userName)}
-          </button>
-          {cuenta && (
-            <div
-              role="dialog"
-              aria-label="Tu cuenta"
-              className="absolute bottom-0 left-full z-50 ml-3 w-64 space-y-1 rounded-2xl border bg-popover p-2 text-popover-foreground shadow-pop"
-            >
-              <div className="px-2.5 pb-1.5 pt-1">
-                <p className="truncate text-[14px] font-semibold">{userName}</p>
-                <p className="text-[12px] text-text-3">
-                  {role === "owner" ? "Propietario" : "Equipo"} · En línea
-                </p>
-              </div>
-              <div className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-[13.5px] text-text-2">
-                Tema
-                <ThemeToggle initial={apariencia} />
-              </div>
-              <BotonActivarAvisos className={navItemClass(false)} />
-              <BotonInstalar className={navItemClass(false)} />
-              <button
-                type="button"
-                onClick={onSalir}
-                className={cn(navItemClass(false), "w-full")}
-              >
-                <LogOut className="h-5 w-5 shrink-0 text-text-3" strokeWidth={1.8} aria-hidden />
-                Cerrar sesión
-              </button>
-              <p className="px-2.5 pb-1 pt-1.5 font-mono text-[10.5px] tracking-[0.06em] text-text-2" title={versionTitulo}>
-                {version}
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </nav>
   );
 }

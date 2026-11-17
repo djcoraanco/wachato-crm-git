@@ -7,6 +7,7 @@ const prefixes = {
   organization: "org",
   member: "mem",
   contact: "ct",
+  company: "emp",
   conversation: "cv",
   message: "msg",
   lead: "ld",
@@ -41,6 +42,13 @@ const prefixes = {
   quickReply: "qr",
   // 050 — notas internas del hilo
   conversationNote: "nota",
+  customField: "campo",
+  customFieldFile: "cf",
+  salesPipeline: "emb",
+  salesPipelineStage: "ets",
+  salesDeal: "trato",
+  salesDealEvent: "trv",
+  crmActivity: "act",
 } as const;
 
 export type IdKind = keyof typeof prefixes;

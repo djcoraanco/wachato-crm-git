@@ -40,7 +40,9 @@ export type BoardLead = {
 
 export function PipelineClient() {
   const [stages, setStages] = useState<StageDto[]>([]);
+  const [eventosMeta, setEventosMeta] = useState<readonly string[] | null>(null);
   const [currency, setCurrency] = useState("MXN");
+  const [error, setError] = useState<string | null>(null);
   const [leads, setLeads] = useState<BoardLead[]>([]);
   const [activeLead, setActiveLead] = useState<BoardLead | null>(null);
   const [managing, setManaging] = useState(false);
@@ -66,15 +68,20 @@ export function PipelineClient() {
 
   const refetch = useCallback(async () => {
     const res = await fetch("/api/pipeline/board").catch(() => null);
-    if (!res?.ok) return;
+    if (!res?.ok) {
+      setError("No se pudo cargar el pipeline");
+      return;
+    }
     const data = (await res.json()) as {
       stages: StageDto[];
       leads: BoardLead[];
       currency?: string;
+      eventosMeta?: string[] | null;
     };
     if (data.currency) setCurrency(data.currency);
     setStages(data.stages);
     setLeads(data.leads);
+    setEventosMeta(data.eventosMeta ?? null);
   }, []);
 
   useEffect(() => {
@@ -92,47 +99,41 @@ export function PipelineClient() {
     loss?: { reason: LossReason; note: string }
   ) {
     const position = leads.filter((l) => l.stageId === overStage).length;
-    // Optimista + persistencia
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, stageId: overStage, position } : l))
-    );
-    await fetch(`/api/pipeline/leads/${leadId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    await guardarLead(leadId, {
         stageId: overStage,
         position,
         ...(loss
           ? { lossReason: loss.reason, ...(loss.note ? { lossNote: loss.note } : {}) }
           : {}),
-      }),
-    }).catch(() => null);
-    void refetch();
+    });
   }
 
   async function guardarMonto(leadId: string, cents: number | null) {
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, amountCents: cents } : l))
-    );
-    await fetch(`/api/pipeline/leads/${leadId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      // Sin `stageId`: esto NO mueve la tarjeta, solo escribe el importe.
-      body: JSON.stringify({ amountCents: cents }),
-    }).catch(() => null);
-    void refetch();
+    await guardarLead(leadId, { amountCents: cents });
   }
 
   async function guardarPrioridad(leadId: string, priority: PriorityValue | null) {
-    setLeads((prev) =>
-      prev.map((l) => (l.id === leadId ? { ...l, priority } : l))
-    );
-    await fetch(`/api/pipeline/leads/${leadId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ priority }),
-    }).catch(() => null);
-    void refetch();
+    await guardarLead(leadId, { priority });
+  }
+
+  async function guardarLead(leadId: string, cambios: Record<string, unknown>) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/pipeline/leads/${leadId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(cambios),
+      });
+      if (!res.ok) {
+        const datos = await res.json().catch(() => null) as { error?: { message?: string } } | null;
+        throw new Error(datos?.error?.message ?? "No se pudo guardar el cambio");
+      }
+    } catch (err) {
+      setError(err instanceof TypeError
+        ? "No se pudo conectar para guardar el cambio"
+        : err instanceof Error ? err.message : "No se pudo guardar el cambio");
+    }
+    await refetch();
   }
 
   async function onDragEnd(event: DragEndEvent) {
@@ -178,6 +179,7 @@ export function PipelineClient() {
           <Settings2 className="h-4 w-4" /> Gestionar etapas
         </Button>
       </header>
+      {error && <p role="alert" className="px-4 pt-3 text-sm text-destructive">{error}</p>}
 
       {/* El tablero se arrastra en horizontal; en el teléfono cada columna
           se detiene en su sitio (snap) para no quedar a medio camino. */}
@@ -212,6 +214,7 @@ export function PipelineClient() {
       {managing && (
         <StageManager
           stages={stages}
+          eventosMeta={eventosMeta}
           onClose={() => setManaging(false)}
           onChanged={() => void refetch()}
         />

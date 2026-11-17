@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, notExists, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, notExists, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
 import { vaciarFicha } from "@/server/bot/ficha";
@@ -40,6 +40,7 @@ export type ResultadoEliminar =
       conversaciones: ConversacionEliminada[];
     }
   | { ok: false; motivo: "no_encontrada" }
+  | { ok: false; motivo: "datos_comerciales" }
   | { ok: false; motivo: "cita_pendiente"; cuando: Date };
 
 export async function eliminarConversacion(
@@ -129,6 +130,32 @@ export async function eliminarConversacion(
       .orderBy(schema.booking.scheduledAt)
       .limit(1);
     if (cita) return { ok: false, motivo: "cita_pendiente", cuando: cita.cuando };
+
+    if (todoElContacto) {
+      const leads = await tx.select({ id: schema.lead.id }).from(schema.lead)
+        .where(scoped(schema.lead.organizationId, organizationId,
+          eq(schema.lead.contactId, contact.id)))
+        .for("update");
+      const [tratos, actividades, empresas, valores] = await Promise.all([
+        tx.select({ id: schema.salesDeal.id }).from(schema.salesDeal)
+          .where(scoped(schema.salesDeal.organizationId, organizationId,
+            eq(schema.salesDeal.contactId, contact.id))).limit(1),
+        tx.select({ id: schema.crmActivity.id }).from(schema.crmActivity)
+          .where(scoped(schema.crmActivity.organizationId, organizationId,
+            or(eq(schema.crmActivity.contactId, contact.id),
+              leads.length ? inArray(schema.crmActivity.leadId, leads.map((lead) => lead.id)) : undefined)))
+          .limit(1),
+        tx.select({ id: schema.companyContact.contactId }).from(schema.companyContact)
+          .where(scoped(schema.companyContact.organizationId, organizationId,
+            eq(schema.companyContact.contactId, contact.id))).limit(1),
+        tx.select({ id: schema.contactCustomValue.contactId }).from(schema.contactCustomValue)
+          .where(scoped(schema.contactCustomValue.organizationId, organizationId,
+            eq(schema.contactCustomValue.contactId, contact.id))).limit(1),
+      ]);
+      if (tratos.length || actividades.length || empresas.length || valores.length) {
+        return { ok: false, motivo: "datos_comerciales" };
+      }
+    }
 
     // Los adjuntos se anotan ANTES de borrar: después ya no hay mensaje que
     // diga cuáles eran.

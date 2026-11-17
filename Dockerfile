@@ -48,6 +48,7 @@ RUN addgroup -S vocero && adduser -S vocero -G vocero
 RUN mkdir -p /data/media && chown -R vocero:vocero /data
 
 COPY --from=builder --chown=vocero:vocero /app/.next/standalone ./
+COPY --from=builder --chown=vocero:vocero /app/node_modules/@fontsource/unifont/files/unifont-latin-400-normal.woff ./fonts/unifont.woff
 COPY --from=builder --chown=vocero:vocero /app/.next/static ./.next/static
 COPY --from=builder --chown=vocero:vocero /app/public ./public
 COPY --from=builder --chown=vocero:vocero /app/migrate.bundle.mjs ./migrate.mjs

@@ -1,9 +1,11 @@
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { apiError, parseBody, withAuth } from "@/lib/api";
 import { getDb, schema } from "@/lib/db";
 import { scoped } from "@/lib/db/tenant";
-import { relocateLeadsFromStage } from "@/server/leads/stage-history";
+import { META_BUSINESS_MESSAGING_EVENTS } from "@/lib/meta/capi";
+import { atribucionEnabled, atribucionDisabledResponse } from "@/server/attribution/flag";
+import { eliminarEtapaConLeads } from "@/server/leads/stage-history";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +14,16 @@ type Params = { params: Promise<{ id: string }> };
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   position: z.number().int().min(0).optional(),
+  metaEvent: z.enum(META_BUSINESS_MESSAGING_EVENTS).nullable().optional(),
 });
 
 export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const body = await parseBody(req, patchSchema);
   if (!body.ok) return body.response;
+  if (body.data.metaEvent !== undefined && !atribucionEnabled()) {
+    return atribucionDisabledResponse();
+  }
 
   const db = getDb();
   const updated = await db
@@ -27,6 +33,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
       ...(body.data.position !== undefined
         ? { position: body.data.position }
         : {}),
+      ...(body.data.metaEvent !== undefined ? { metaEvent: body.data.metaEvent } : {}),
     })
     .where(
       scoped(
@@ -37,88 +44,25 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     )
     .returning();
   if (!updated[0]) return apiError(404, "not_found", "Etapa no encontrada");
-  return Response.json({ stage: updated[0] });
+  const { metaEvent, ...stage } = updated[0];
+  return Response.json({ stage: atribucionEnabled() ? { ...stage, metaEvent } : stage });
 });
 
 export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
   const { id } = await ctx.params;
   const url = new URL(req.url);
   const moveTo = url.searchParams.get("moveTo");
-
-  const db = getDb();
-  const rows = await db
-    .select()
-    .from(schema.pipelineStage)
-    .where(
-      scoped(
-        schema.pipelineStage.organizationId,
-        session.organizationId,
-        eq(schema.pipelineStage.id, id)
-      )
-    )
-    .limit(1);
-  const stage = rows[0];
-  if (!stage) return apiError(404, "not_found", "Etapa no encontrada");
-  if (stage.kind !== "open") {
-    return apiError(
-      409,
-      "anchor_stage",
-      'Las etapas ancla ("ganado" y "perdido") no se pueden eliminar'
-    );
-  }
-
-  const leadsInStage = await db
-    .select({ n: count() })
-    .from(schema.lead)
-    .where(
-      scoped(
-        schema.lead.organizationId,
-        session.organizationId,
-        eq(schema.lead.stageId, id)
-      )
-    );
-  const n = leadsInStage[0]?.n ?? 0;
-
-  if (n > 0) {
-    if (!moveTo) {
-      return apiError(
-        409,
-        "stage_has_leads",
-        "La etapa tiene tarjetas: indica ?moveTo=<etapa destino> para reasignarlas"
-      );
+  const result = await eliminarEtapaConLeads({
+    organizationId: session.organizationId, stageId: id, moveTo, actorUserId: session.userId,
+  });
+  if (!result.ok) {
+    switch (result.reason) {
+      case "not_found": return apiError(404, "not_found", "Etapa no encontrada");
+      case "anchor_stage": return apiError(409, "anchor_stage", 'Las etapas ancla ("ganado" y "perdido") no se pueden eliminar');
+      case "stage_has_deals": return apiError(409, "stage_has_deals", "Mueve primero los tratos de esta etapa");
+      case "stage_has_leads": return apiError(409, "stage_has_leads", "La etapa tiene tarjetas: indica ?moveTo=<etapa destino> para reasignarlas");
+      case "invalid_move_to": return apiError(422, "invalid_move_to", "Etapa destino inválida");
     }
-    const dest = await db
-      .select({ id: schema.pipelineStage.id })
-      .from(schema.pipelineStage)
-      .where(
-        scoped(
-          schema.pipelineStage.organizationId,
-          session.organizationId,
-          eq(schema.pipelineStage.id, moveTo)
-        )
-      )
-      .limit(1);
-    if (!dest[0] || moveTo === id) {
-      return apiError(422, "invalid_move_to", "Etapa destino inválida");
-    }
-    // Por la puerta única, un evento por lead: el embudo debe poder explicar
-    // por qué treinta tarjetas cambiaron de columna el mismo minuto.
-    await relocateLeadsFromStage({
-      organizationId: session.organizationId,
-      fromStageId: id,
-      toStageId: moveTo,
-      actorUserId: session.userId,
-    });
   }
-
-  await db
-    .delete(schema.pipelineStage)
-    .where(
-      scoped(
-        schema.pipelineStage.organizationId,
-        session.organizationId,
-        eq(schema.pipelineStage.id, id)
-      )
-    );
-  return Response.json({ deleted: true, movedLeads: n });
+  return Response.json({ deleted: true, movedLeads: result.movedLeads });
 });

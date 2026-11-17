@@ -1,4 +1,4 @@
-﻿import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { newId } from "@/lib/db/ids";
 import { scoped } from "@/lib/db/tenant";
@@ -59,6 +59,7 @@ export async function moveLeadToStage(input: MoveInput): Promise<MoveResult> {
   // llamada de red dentro de la transacción la mantendría abierta mientras
   // Meta piensa, y una conversión jamás vale una transacción larga.
   let toStageKind: "open" | "won" | "lost" | null = null;
+  let metaEvent: string | null = null;
 
   const result = await db.transaction(async (tx) => {
     const leadRows = await tx
@@ -97,6 +98,7 @@ export async function moveLeadToStage(input: MoveInput): Promise<MoveResult> {
 
     const changed = current.lead.stageId !== target.id;
     toStageKind = target.kind;
+    metaEvent = target.metaEvent;
 
     // El motivo se exige al ENTRAR a la etapa perdida. Reordenar una tarjeta
     // que ya estaba ahí no vuelve a preguntar.
@@ -158,6 +160,7 @@ export async function moveLeadToStage(input: MoveInput): Promise<MoveResult> {
       contactId: result.lead.contactId,
       toStageId: result.lead.stageId,
       toStageKind,
+      metaEvent,
     });
   }
 
@@ -226,54 +229,69 @@ export async function recordLeadCreated(input: {
  * Reubicación masiva al eliminar una etapa. Un evento por lead: el embudo debe
  * poder explicar por qué 30 tarjetas cambiaron de columna el mismo minuto.
  */
-export async function relocateLeadsFromStage(input: {
+export async function eliminarEtapaConLeads(input: {
   organizationId: string;
-  fromStageId: string;
-  toStageId: string;
+  stageId: string;
+  moveTo: string | null;
   actorUserId?: string | null;
-}): Promise<number> {
+}) {
   const db = getDb();
-  const leads = await db
-    .select({ id: schema.lead.id })
-    .from(schema.lead)
-    .where(
-      scoped(
-        schema.lead.organizationId,
-        input.organizationId,
-        eq(schema.lead.stageId, input.fromStageId)
-      )
-    )
-    .orderBy(asc(schema.lead.position));
-
-  const stageRows = await db
-    .select({ name: schema.pipelineStage.name })
-    .from(schema.pipelineStage)
-    .where(
-      scoped(
-        schema.pipelineStage.organizationId,
-        input.organizationId,
-        eq(schema.pipelineStage.id, input.fromStageId)
-      )
-    )
-    .limit(1);
-  const fromName = stageRows[0]?.name ?? "una etapa eliminada";
-
-  let moved = 0;
-  for (const l of leads) {
-    const res = await moveLeadToStage({
-      organizationId: input.organizationId,
-      leadId: l.id,
-      toStageId: input.toStageId,
-      actorUserId: input.actorUserId ?? null,
-      source: "sistema",
-      // Si el destino resulta ser la etapa perdida, el motivo no se puede
-      // inventar pero tampoco puede faltar: se registra lo que de verdad pasó.
-      lossReason: "otro",
-      lossNote: `Reubicado al eliminar la etapa "${fromName}"`,
-    });
-    if (res.ok) moved += 1;
+  const resultado = await db.transaction(async (tx) => {
+    const ids = input.moveTo ? [input.stageId, input.moveTo] : [input.stageId];
+    const etapas = await tx.select().from(schema.pipelineStage)
+      .where(scoped(schema.pipelineStage.organizationId, input.organizationId,
+        inArray(schema.pipelineStage.id, ids)))
+      .orderBy(asc(schema.pipelineStage.id))
+      .for("update");
+    const origen = etapas.find((etapa) => etapa.id === input.stageId);
+    if (!origen) return { ok: false as const, reason: "not_found" as const };
+    if (origen.kind !== "open") return { ok: false as const, reason: "anchor_stage" as const };
+    const [trato] = await tx.select({ id: schema.salesDeal.id }).from(schema.salesDeal)
+      .where(scoped(schema.salesDeal.organizationId, input.organizationId,
+        eq(schema.salesDeal.legacyStageId, input.stageId))).limit(1);
+    if (trato) return { ok: false as const, reason: "stage_has_deals" as const };
+    const leads = await tx.select().from(schema.lead)
+      .where(scoped(schema.lead.organizationId, input.organizationId,
+        eq(schema.lead.stageId, input.stageId)))
+      .orderBy(asc(schema.lead.position))
+      .for("update");
+    if (leads.length && !input.moveTo) return { ok: false as const, reason: "stage_has_leads" as const };
+    const destino = etapas.find((etapa) => etapa.id === input.moveTo);
+    if (leads.length && (!destino || destino.id === origen.id)) {
+      return { ok: false as const, reason: "invalid_move_to" as const };
+    }
+    if (destino && leads.length) {
+      for (const lead of leads) {
+        await tx.update(schema.lead)
+          .set({ stageId: destino.id, updatedAt: new Date() })
+          .where(scoped(schema.lead.organizationId, input.organizationId, eq(schema.lead.id, lead.id)));
+        await tx.insert(schema.leadStageEvent).values({
+          id: newId("leadStageEvent"), organizationId: input.organizationId,
+          leadId: lead.id, contactId: lead.contactId,
+          fromStageId: origen.id, fromStageName: origen.name,
+          toStageId: destino.id, toStageName: destino.name, toStageKind: destino.kind,
+          actorUserId: input.actorUserId ?? null, source: "sistema",
+          lossReason: destino.kind === "lost" ? "otro" : null,
+          lossNote: destino.kind === "lost" ? `Reubicado al eliminar la etapa "${origen.name}"` : null,
+        });
+      }
+    }
+    await tx.delete(schema.pipelineStage)
+      .where(scoped(schema.pipelineStage.organizationId, input.organizationId,
+        eq(schema.pipelineStage.id, input.stageId)));
+    return { ok: true as const, leads, destino };
+  });
+  if (!resultado.ok) return resultado;
+  if (resultado.destino) {
+    for (const lead of resultado.leads) {
+      await reportStageChange({
+        organizationId: input.organizationId, leadId: lead.id, contactId: lead.contactId,
+        toStageId: resultado.destino.id, toStageKind: resultado.destino.kind,
+        metaEvent: resultado.destino.metaEvent,
+      });
+    }
   }
-  return moved;
+  return { ok: true as const, movedLeads: resultado.leads.length };
 }
 
 /** El último motivo de pérdida registrado de un lead, si lo hay. */

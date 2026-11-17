@@ -2,7 +2,7 @@
 
 **Base:** Vocero CRM 2.5.0  
 **Última actualización:** 2026-11-17  
-**Regla de ejecución:** una subtarea a la vez; actualizar su estado y bitácora; validar los gates indicados antes de avanzar. La Fase 0 está cerrada y la Tarea 1.1 se completó con autorización. No iniciar otra subtarea hasta recibir la instrucción correspondiente.
+**Regla de ejecución:** una subtarea a la vez; actualizar su estado y bitácora; validar los gates indicados antes de avanzar. Las Fases 0 y 1 están cerradas; la Fase 2 fue autorizada.
 
 ## Estados
 
@@ -23,15 +23,15 @@
 ## Fase 1 — Design System Wachato y App Shell
 
 - [X] **1.1** Configurar tokens de diseño, tipografías y variables CSS según el prototipo, manteniendo accesibilidad, temas y white-label.
-- [ ] **1.2** Adaptar App Shell responsivo (sidebar, topbar, navegación y layout).
-- [ ] **1.3** Ejecutar gates: `pnpm typecheck`, `pnpm test`; añadir lint/build cuando el alcance lo requiera.
+- [X] **1.2** Adaptar App Shell responsivo (sidebar, topbar, navegación y layout).
+- [X] **1.3** Ejecutar gates: `pnpm typecheck`, `pnpm test`; añadir lint/build cuando el alcance lo requiera.
 
 ## Fase 2 — Core CRM Universal y modelo extendido
 
-- [ ] **2.1** Diseñar e implementar migraciones aditivas para empresas y vínculos N:M empresa-contacto.
-- [ ] **2.2** Implementar definiciones/valores de campos personalizados con validación Zod y almacenamiento/indexación adecuados.
-- [ ] **2.3** Diseñar pipelines múltiples, tratos y tareas/actividades sin romper la semántica actual de leads y etapas.
-- [ ] **2.4** Implementar vistas de Contactos y Pipeline según el prototipo, con exportaciones XLSX/PDF seguras si se aprueban dependencias/formatos.
+- [X] **2.1** Diseñar e implementar migraciones aditivas para empresas y vínculos N:M empresa-contacto.
+- [X] **2.2** Implementar definiciones/valores de campos personalizados con validación Zod y almacenamiento/indexación adecuados (contactos y empresas; tratos se integra en 2.3, interfaz en 2.4).
+- [>] **2.3** Diseñar pipelines múltiples, tratos y tareas/actividades sin romper la semántica actual de leads y etapas.
+- [>] **2.4** Implementar vistas de Contactos y Pipeline según el prototipo, con exportaciones XLSX/PDF seguras si se aprueban dependencias/formatos.
 - [ ] **2.5** Ejecutar gates y pruebas de regresión de tenant, API y migraciones.
 
 ## Fase 3 — Bandeja en tiempo real, medios vocales y conexiones

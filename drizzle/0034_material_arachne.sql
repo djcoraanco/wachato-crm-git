@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "lead_org_id_uq" ON "lead" USING btree ("organization_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "stage_org_id_uq" ON "pipeline_stage" USING btree ("organization_id","id");

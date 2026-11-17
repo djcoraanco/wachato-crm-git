@@ -12,7 +12,10 @@ const nextConfig: NextConfig = {
   // symlinks que requieren permisos elevados, así que ahí se omite.
   output: process.platform === "win32" ? undefined : "standalone",
   // El paquete `postgres` usa APIs de Node que no deben empaquetarse en el bundle.
-  serverExternalPackages: ["postgres"],
+  serverExternalPackages: ["postgres", "pdfkit", "fontkit", "exceljs"],
+  outputFileTracingIncludes: {
+    "/api/contacts/export": ["./node_modules/@fontsource/unifont/files/unifont-latin-400-normal.woff"],
+  },
   // 061 — El indicador de Next en modo dev caía encima de la cuenta del riel
   // (abajo a la izquierda) y tapaba el clic. Solo existe en dev; los errores
   // de compilación se siguen mostrando en su panel.

@@ -103,10 +103,9 @@ const TILE_SIZE = {
 } as const;
 
 /**
- * La marca completa, como en la cabecera de la landing: trazo + wordmark
- * "vocero" en minúsculas y bien apretado. Una instancia rebautizada ve en su
- * lugar el mosaico con la inicial y su nombre (white-label). Con logo subido
- * gana el logo, se llame como se llame: quien sube un archivo quiere verlo.
+ * La marca completa: isotipo Wachato o trazo y wordmark Vocero cuando
+ * corresponde. Una instancia rebautizada ve el mosaico con la inicial y su
+ * nombre. Con logo subido gana el logo, se llame como se llame.
  */
 export function BrandLogo({
   branding,
@@ -117,6 +116,32 @@ export function BrandLogo({
   size?: keyof typeof WORDMARK_SIZE;
   className?: string;
 }) {
+  if (branding.name.trim().toLowerCase() === "wachato" && !branding.favicon) {
+    return (
+      <span
+        aria-label={branding.name}
+        className={cn("flex items-center text-foreground", className)}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "font-display font-[900] leading-none tracking-[-0.02em]",
+            WORDMARK_SIZE[size]
+          )}
+        >
+          wachat
+        </span>
+        <svg
+          viewBox="0 0 100 100"
+          aria-hidden="true"
+          className={cn("translate-y-[0.1em] text-brand", size === "lg" ? "h-[29px] w-[29px]" : "h-[20px] w-[20px]")}
+        >
+          <circle cx="54" cy="44" r="32" fill="none" stroke="currentColor" strokeWidth="20" />
+          <path d="M22 60 L12 96 L44 78 Z" fill="currentColor" />
+        </svg>
+      </span>
+    );
+  }
   if (isVoceroName(branding.name) && !branding.favicon) {
     return (
       <span className={cn("flex items-center gap-2 text-foreground", className)}>

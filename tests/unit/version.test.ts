@@ -40,7 +40,9 @@ describe("versión de la app", () => {
     // miraba, por casualidad, el final del archivo.
     const llamada = nav.indexOf("versionLabel(version.commit)");
     expect(llamada).toBeGreaterThan(0);
-    const insignia = nav.slice(llamada - 600, llamada + 300);
+    const inicioInsignia = nav.indexOf("<p\n", llamada);
+    const insignia = nav.slice(inicioInsignia, inicioInsignia + 500);
+    expect(inicioInsignia).toBeGreaterThan(llamada);
     expect(insignia).toContain("branding.name");
     expect(insignia).not.toMatch(/`Vocero \$\{/);
   });

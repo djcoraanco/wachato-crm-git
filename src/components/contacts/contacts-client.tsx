@@ -7,6 +7,7 @@ import {
   Archive,
   ArchiveRestore,
   BotOff,
+  Download,
   MessageSquareText,
   Search,
   Send,
@@ -15,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ContactDto } from "@/lib/types";
+import { CHANNEL_LABEL, CHANNEL_ORDER, type Channel } from "@/lib/channels";
 import { formatPhone } from "@/lib/utils";
 import { ContactAvatar } from "@/components/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -28,19 +30,29 @@ import { PriorityBadge } from "@/components/pipeline/priority-picker";
 import { ImportContactsDialog } from "./import-contacts-dialog";
 import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
+import { EmpresasClient } from "./empresas-client";
+import { PerfilContactoDialog } from "./perfil-contacto-dialog";
 
 export function ContactsClient() {
   const router = useRouter();
   const [contacts, setContacts] = useState<ContactDto[]>([]);
+  const [mostrarEmpresas, setMostrarEmpresas] = useState(false);
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState("all");
+  const [channel, setChannel] = useState<Channel | "all">("all");
   const [stages, setStages] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ContactDto | null>(null);
+  const [perfil, setPerfil] = useState<ContactDto | null>(null);
   const [creando, setCreando] = useState(false);
   const [importando, setImportando] = useState(false);
   const [escribiendo, setEscribiendo] = useState<ContactDto | null>(null);
+  const [hayMas, setHayMas] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const peticionRef = useRef(0);
 
   // Mismo rescate que en la Bandeja: lo tecleado antes de que hidrate el JS
   // se perdía en silencio. Ver conversation-list.tsx.
@@ -58,14 +70,27 @@ export function ContactsClient() {
     })();
   }, []);
 
-  const refetch = useCallback(async () => {
+  const filtros = useCallback(() => {
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     if (stage !== "all") params.set("stage", stage);
+    if (channel !== "all") params.set("channel", channel);
     if (showArchived) params.set("archived", "true");
+    return params;
+  }, [query, stage, channel, showArchived]);
+
+  const refetch = useCallback(async () => {
+    const numero = ++peticionRef.current;
+    const params = filtros();
     const res = await fetch(`/api/contacts?${params}`).catch(() => null);
-    if (!res?.ok) return;
+    if (numero !== peticionRef.current) return;
+    if (!res?.ok) {
+      setError("No se pudieron cargar los contactos");
+      return;
+    }
     const data = (await res.json()) as { contacts: ContactDto[] };
+    if (numero !== peticionRef.current) return;
+    setHayMas(data.contacts.length === 200);
     // A quién llamar primero: alta arriba, sin prioridad al final. El orden lo
     // decide esta lista, no el servidor, porque es una preferencia de trabajo y
     // no un dato del contacto.
@@ -74,7 +99,56 @@ export function ContactsClient() {
         (a, b) => priorityRank(a.priority ?? null) - priorityRank(b.priority ?? null)
       )
     );
-  }, [query, stage, showArchived]);
+  }, [filtros]);
+
+  async function cargarMas() {
+    const numero = peticionRef.current;
+    setCargandoMas(true);
+    try {
+      const params = filtros();
+      params.set("offset", String(contacts.length));
+      const res = await fetch(`/api/contacts?${params}`);
+      if (!res.ok) throw new Error("No se pudieron cargar más contactos");
+      const data = (await res.json()) as { contacts: ContactDto[] };
+      if (numero !== peticionRef.current) return;
+      setContacts((actuales) => [...actuales, ...data.contacts].sort(
+        (a, b) => priorityRank(a.priority ?? null) - priorityRank(b.priority ?? null)
+      ));
+      setHayMas(data.contacts.length === 200);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron cargar más contactos");
+    } finally {
+      setCargandoMas(false);
+    }
+  }
+
+  async function exportar(formato: "xlsx" | "pdf") {
+    setExportando(true);
+    setError(null);
+    try {
+      const params = filtros();
+      params.set("format", formato);
+      const res = await fetch(`/api/contacts/export?${params}`);
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: { message?: string } };
+        throw new Error(data.error?.message ?? "No se pudo exportar");
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = `contactos-${new Date().toISOString().slice(0, 10)}.${formato}`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof TypeError ? "No se pudo conectar para exportar"
+        : err instanceof Error ? err.message : "No se pudo exportar");
+    } finally {
+      setExportando(false);
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => void refetch(), 250);
@@ -82,19 +156,36 @@ export function ContactsClient() {
   }, [refetch]);
 
   async function patch(id: string, body: Record<string, unknown>) {
-    await fetch(`/api/contacts/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }).catch(() => null);
-    void refetch();
+    setError(null);
+    try {
+      const res = await fetch(`/api/contacts/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+        throw new Error(data?.error?.message ?? "No se pudo actualizar el contacto");
+      }
+      await refetch();
+      return true;
+    } catch (err) {
+      setError(err instanceof TypeError ? "No se pudo conectar para actualizar el contacto"
+        : err instanceof Error ? err.message : "No se pudo actualizar el contacto");
+      return false;
+    }
   }
+
+  if (mostrarEmpresas) return <EmpresasClient onVolver={() => setMostrarEmpresas(false)} />;
 
   return (
     <div className="flex h-full flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-[17px] font-bold tracking-tight">Contactos</h2>
+          <Button size="sm" variant="outline" onClick={() => setMostrarEmpresas(true)}>
+            Empresas
+          </Button>
           <Button size="sm" onClick={() => setCreando(true)}>
             <UserPlus className="mr-1.5 h-4 w-4" strokeWidth={1.8} />
             Nuevo contacto
@@ -102,6 +193,12 @@ export function ContactsClient() {
           <Button size="sm" variant="secondary" onClick={() => setImportando(true)}>
             <Upload className="mr-1.5 h-4 w-4" strokeWidth={1.8} />
             Importar
+          </Button>
+          <Button size="sm" variant="outline" disabled={exportando} onClick={() => void exportar("xlsx")}>
+            <Download className="mr-1.5 h-4 w-4" /> Descargar Excel
+          </Button>
+          <Button size="sm" variant="outline" disabled={exportando} onClick={() => void exportar("pdf")}>
+            <Download className="mr-1.5 h-4 w-4" /> Descargar PDF
           </Button>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
@@ -129,11 +226,20 @@ export function ContactsClient() {
               ))}
             </select>
           )}
+          <select
+            value={channel}
+            onChange={(e) => setChannel(e.target.value as Channel | "all")}
+            aria-label="Filtrar por canal"
+            className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+          >
+            <option value="all">Todos los canales</option>
+            {CHANNEL_ORDER.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
+          </select>
           <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               ref={inputRef}
-              placeholder="Buscar por nombre o teléfono…"
+              placeholder="Buscar por nombre, teléfono o usuario…"
               aria-label="Buscar contacto"
               defaultValue=""
               onChange={(e) => setQuery(e.target.value)}
@@ -143,9 +249,13 @@ export function ContactsClient() {
         </div>
       </header>
 
+      {error && <p role="alert" className="px-4 pt-3 text-sm text-destructive">{error}</p>}
+      <p className="px-4 pt-3 text-xs text-muted-foreground">
+        La descarga incluye todos los contactos que coinciden con los filtros, incluso los aún no cargados. Las etiquetas todavía no están disponibles.
+      </p>
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {contacts.length === 0 ? (
-          query.trim() || stage !== "all" ? (
+          query.trim() || stage !== "all" || channel !== "all" ? (
             <EmptyState
               icon={Search}
               className="h-full"
@@ -156,6 +266,7 @@ export function ContactsClient() {
                   {query.trim() ? ` «${query.trim()}»` : ""}
                   {query.trim() && stage !== "all" ? " en" : ""}
                   {stage !== "all" ? ` la etapa «${stage}»` : ""}.
+                  {channel !== "all" ? ` Canal: ${CHANNEL_LABEL[channel]}.` : ""}
                 </>
               }
             />
@@ -213,10 +324,11 @@ export function ContactsClient() {
                   </p>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                  <Button variant="ghost" size="sm" onClick={() => setPerfil(c)}>Perfil</Button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setEditing(c)}
+                    onClick={() => { setError(null); setEditing(c); }}
                   >
                     Editar
                   </Button>
@@ -251,6 +363,9 @@ export function ContactsClient() {
                 </div>
               </li>
             ))}
+            {hayMas && (
+              <li><Button variant="outline" disabled={cargandoMas} onClick={() => void cargarMas()}>Cargar más</Button></li>
+            )}
           </ul>
         )}
       </div>
@@ -258,13 +373,14 @@ export function ContactsClient() {
       {editing && (
         <EditDialog
           contact={editing}
+          error={error}
           onClose={() => setEditing(null)}
           onSave={async (patchBody) => {
-            await patch(editing.id, patchBody);
-            setEditing(null);
+            if (await patch(editing.id, patchBody)) setEditing(null);
           }}
         />
       )}
+      {perfil && <PerfilContactoDialog id={perfil.id} nombre={perfil.name} onClose={() => setPerfil(null)} />}
 
       {escribiendo && (
         <div
@@ -322,10 +438,12 @@ export function ContactsClient() {
 
 function EditDialog({
   contact,
+  error,
   onClose,
   onSave,
 }: {
   contact: ContactDto;
+  error: string | null;
   onClose: () => void;
   onSave: (patch: { name: string; notes: string; aiPaused?: boolean }) => Promise<void>;
 }) {
@@ -343,6 +461,7 @@ function EditDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="mb-4 font-semibold">Editar contacto</h3>
+        {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-name">

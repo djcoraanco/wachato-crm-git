@@ -12,7 +12,7 @@ import { resolveAccentSet, type Branding } from "./branding";
  *
  * Toda instancia tiene uno **sin configurar nada**: si se llama Vocero, es el
  * logo de la marca (la "v" con remate cian sobre el mosaico azul, igual que en
- * vocerocrm.com); con otro nombre se dibuja la inicial sobre el acento. Una
+ * vocerocrm.com); con otro nombre, incluido Wachato, se dibuja la inicial sobre el acento. Una
  * agencia que despliega para su cliente puede subir el logo real y
  * reemplazarlo.
  *
