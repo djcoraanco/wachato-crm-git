@@ -152,7 +152,7 @@ docker compose up -d
 - `docker compose up -d` reconstruye la imagen desde `main` del repositorio
   público de Wachato. Los cambios deben estar publicados y GitHub disponible
   durante el build; un push por sí solo no despliega.
-- En aaPanel, configura HTTPS y proxy a `http://127.0.0.1:3000`, sin buffering
+- En aaPanel, configura HTTPS y proxy a `http://127.0.0.1:3001`, sin buffering
   para el SSE de `/api/events`. Si cambias `WACHATO_PORT`, ajusta el proxy.
   Sin aaPanel, usa `docker compose --profile caddy up -d` para HTTPS con
   Caddy; no ejecutes ambos proxies en los puertos 80 y 443.

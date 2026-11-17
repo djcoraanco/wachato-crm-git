@@ -51,7 +51,7 @@ describe("versión de la app", () => {
     expect(app).toMatch(/^\s+image: wachato-crm:local$/m);
     expect(app).toMatch(/^\s+pull_policy: build$/m);
     expect(app).toMatch(/^\s+context: https:\/\/github\.com\/djcoraanco\/wachato-crm-git\.git#main$/m);
-    expect(app).toContain('"127.0.0.1:${WACHATO_PORT:-3000}:3000"');
+    expect(app).toContain('"127.0.0.1:${WACHATO_PORT:-3001}:3000"');
     expect(app).not.toContain("ghcr.io/kevinrivm/vocero-crm");
   });
 

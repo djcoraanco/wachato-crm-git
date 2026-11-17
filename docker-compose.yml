@@ -7,7 +7,7 @@
 # La imagen se construye siempre desde la rama main del repositorio público;
 # `pull_policy: build` evita descargar la imagen oficial o reutilizar una
 # imagen anterior al ejecutar `up`. El `git pull` actualiza este compose.
-# El proxy de aaPanel apunta a 127.0.0.1:3000 (o WACHATO_PORT).
+# El proxy de aaPanel apunta a 127.0.0.1:3001 (o WACHATO_PORT).
 # Sin aaPanel, el perfil `caddy` habilita el HTTPS automático:
 #   docker compose --profile caddy up -d
 #
@@ -37,7 +37,7 @@ services:
       context: https://github.com/djcoraanco/wachato-crm-git.git#main
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${WACHATO_PORT:-3000}:3000"
+      - "127.0.0.1:${WACHATO_PORT:-3001}:3000"
     environment:
       APP_BASE_URL: ${APP_BASE_URL}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/vocero

@@ -345,7 +345,7 @@ GitHub durante el build. No incorpora cambios locales que aún no estén
 publicados y un push no despliega automáticamente.
 
 En aaPanel, configura el dominio con HTTPS y un proxy inverso a
-`http://127.0.0.1:3000`. Mantén el buffering desactivado para `/api/events`
+`http://127.0.0.1:3001`. Mantén el buffering desactivado para `/api/events`
 (SSE). El puerto del host puede cambiarse con `WACHATO_PORT` en `.env`; usa el
 mismo en el proxy. Postgres queda en la red interna. Sin aaPanel, puedes usar
 `docker compose --profile caddy up -d`: Caddy ocupa los puertos 80 y 443 y
