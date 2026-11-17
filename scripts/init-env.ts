@@ -16,7 +16,7 @@ import { DEFAULT_DOMAIN, runInitEnv } from "@/server/doctor/init-env";
 function usage(): void {
   console.error(
     "Uso: pnpm init-env [--domain crm.tudominio.com]\n" +
-      `  Sin --domain se usa ${DEFAULT_DOMAIN} (Caddy sirve https://localhost con certificado interno).`
+      `  Sin --domain se usa ${DEFAULT_DOMAIN} (el perfil caddy sirve https://localhost con certificado interno).`
   );
 }
 

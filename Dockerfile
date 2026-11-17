@@ -16,9 +16,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # Commit del que sale la imagen, para que la app pueda decir qué está corriendo.
-# Tiene que llegar como build arg en CADA despliegue; con docker compose,
-# `--build-arg SOURCE_COMMIT=$(git rev-parse HEAD)`. Si falta nunca es un error
-# de build: la app enseña solo la versión, o el SOURCE_COMMIT que encuentre en
+# Pásalo como build arg solo si el contexto está fijado a ese mismo commit.
+# Si falta, la app enseña solo la versión, o el SOURCE_COMMIT que encuentre en
 # el entorno al arrancar, marcado como no verificado.
 ARG SOURCE_COMMIT=""
 ENV SOURCE_COMMIT=$SOURCE_COMMIT

@@ -45,14 +45,20 @@ describe("versión de la app", () => {
     expect(insignia).not.toMatch(/`Vocero \$\{/);
   });
 
-  it("docker compose arranca por defecto la imagen de esta misma versión", () => {
-    // El compose es el único otro lugar con la versión escrita: fija la imagen
-    // publicada. Si package.json sube y el compose no, `docker compose up -d`
-    // corre la versión anterior mientras el código y el CHANGELOG hablan de
-    // la nueva.
+  it("docker compose construye el código público en vez de descargar la imagen oficial", () => {
     const compose = readFileSync(path.join(RAIZ, "docker-compose.yml"), "utf8");
-    const imagen = compose.match(/image:\s*\S+:\$\{VOCERO_CRM_VERSION:-([^}\s]+)\}/);
-    expect(imagen?.[1]).toBe(pkg.version);
+    const app = compose.split(/^  app:\s*$/m)[1]?.split(/^  nea:\s*$/m)[0] ?? "";
+    expect(app).toMatch(/^\s+image: wachato-crm:local$/m);
+    expect(app).toMatch(/^\s+pull_policy: build$/m);
+    expect(app).toMatch(/^\s+context: https:\/\/github\.com\/djcoraanco\/wachato-crm-git\.git#main$/m);
+    expect(app).toContain('"127.0.0.1:${WACHATO_PORT:-3000}:3000"');
+    expect(app).not.toContain("ghcr.io/kevinrivm/vocero-crm");
+  });
+
+  it("Caddy solo toma los puertos públicos cuando se habilita su perfil", () => {
+    const compose = readFileSync(path.join(RAIZ, "docker-compose.yml"), "utf8");
+    const caddy = compose.split(/^  caddy:\s*$/m)[1]?.split(/^volumes:\s*$/m)[0] ?? "";
+    expect(caddy).toMatch(/^\s+profiles: \["caddy"\]$/m);
   });
 
   it("el Dockerfile acepta el commit sin exigirlo", () => {

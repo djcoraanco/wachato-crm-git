@@ -305,11 +305,9 @@ Meta y tu proveedor LLM opcional.
 
 ## Instalación (~15 minutos)
 
-Cada versión se publica como imagen de Docker:
-`ghcr.io/kevinrivm/vocero-crm:<versión>` (p. ej. `2.5.0`). Instalar desde
-la imagen es el camino recomendado: tu servidor la descarga en vez de
-construirla. Construir desde el código sigue funcionando, y es lo que
-necesitas en un VPS ARM o si tu fork cambia el código.
+La Ruta B construye la imagen desde la rama `main` del repositorio público
+de Wachato. Las otras plataformas pueden seguir usando la imagen oficial de
+Vocero o construir desde código, según su manifest.
 
 ### 0. Apunta tu dominio
 
@@ -325,12 +323,11 @@ tipo «Docker Image» con la imagen de la versión, le monta el volumen de
 `/data`, genera los secretos y verifica el healthcheck. La misma guía trae la
 variante que construye desde el repositorio.
 
-### Ruta B — docker compose
+### Ruta B — docker compose y aaPanel
 
 ```bash
-git clone https://github.com/kevinrivm/vocero-crm.git vocero && cd vocero
+git clone https://github.com/djcoraanco/wachato-crm-git.git wachato && cd wachato
 pnpm install && pnpm init-env --domain crm.tudominio.com   # crea .env con los secretos ya generados
-pnpm doctor                                                 # revisa el .env antes de arrancar
 docker compose up -d
 ```
 
@@ -339,26 +336,25 @@ secretos generados (nunca pisa uno existente); sin `--domain` deja
 `DOMAIN=localhost` para probar en la misma máquina. Necesita Node 22 y pnpm
 (`corepack enable`); sin ellos en el VPS, `cp .env.example .env` y rellena a
 mano (cada variable trae su comando `openssl`). `pnpm doctor` valida las
-variables con el mismo esquema que el arranque, prueba la base de datos, el
-directorio de adjuntos y, si ya hay un número conectado, el token de WhatsApp:
-cada ✗ sale con el comando que la arregla, y nunca imprime un secreto.
+variables, la base y los adjuntos, pero ejecutado en el host no puede resolver
+el nombre interno `postgres` de la red de Compose sin configuración adicional.
 
-`docker-compose.yml` declara las dos cosas: la imagen publicada (`image`) y el
-código (`build: .`). Sin `pull_policy`, la
-[especificación de Compose](https://docs.docker.com/reference/compose-file/build/#using-build-and-image)
-dice qué pasa: intenta primero descargar la imagen y solo la construye desde el
-código si no la encuentra ni en el registro ni en tu máquina. Así que:
+Compose construye `wachato-crm:local` desde la rama pública `main` de
+`djcoraanco/wachato-crm-git` cada vez que se ejecuta `up`; necesita acceso a
+GitHub durante el build. No incorpora cambios locales que aún no estén
+publicados y un push no despliega automáticamente.
 
-- `docker compose up -d` corre la imagen publicada de la versión que fija el
-  compose. Para otra versión publicada, `VOCERO_CRM_VERSION=X.Y.Z` en tu
-  `.env`.
-- `docker compose up -d --build` la construye desde tu copia del código. Es lo
-  que necesitas en un VPS ARM y en un fork con cambios propios; en el fork,
-  úsalo siempre: lo que construyes queda con el mismo nombre de imagen, y sin
-  `--build` Compose puede correr la oficial en vez de tus cambios.
+En aaPanel, configura el dominio con HTTPS y un proxy inverso a
+`http://127.0.0.1:3000`. Mantén el buffering desactivado para `/api/events`
+(SSE). El puerto del host puede cambiarse con `WACHATO_PORT` en `.env`; usa el
+mismo en el proxy. Postgres queda en la red interna. Sin aaPanel, puedes usar
+`docker compose --profile caddy up -d`: Caddy ocupa los puertos 80 y 443 y
+emite el certificado para `DOMAIN`. No actives Caddy si aaPanel ya usa esos
+puertos. En una instalación anterior con Caddy, detén explícitamente el
+contenedor Caddy anterior antes de activar el proxy de aaPanel; conserva los
+volúmenes y haz respaldo antes de actualizar.
 
-Caddy emite el certificado HTTPS solo. Verifica con
-`https://crm.tudominio.com/api/health` → `{"ok":true,"version":"2.5.0",…}`.
+Verifica `https://crm.tudominio.com/api/health` → `{"ok":true,…}`.
 
 ### Otras plataformas: Render, Fly y Railway
 
@@ -430,8 +426,9 @@ memoria y las migraciones al arrancar.
 ### Actualizar
 
 Antes, lee en [`CHANGELOG.md`](CHANGELOG.md) la sección «Actualizar desde…» de
-la versión nueva. Con docker compose: `git pull` y `docker compose up -d` (con
-`--build` si tu fork tiene cambios propios). En Coolify: cambia la etiqueta de
+la versión nueva. Con docker compose: publica tus cambios en `main`, después
+`git pull` en el servidor y `docker compose up -d`; esto reconstruye desde la
+rama pública. En Coolify: cambia la etiqueta de
 la imagen a la versión nueva y redespliega; si construyes desde el
 repositorio, redespliega. Con los manifests: cambia la etiqueta de la imagen
 en el archivo (Render sincroniza el Blueprint; Fly, `fly deploy`; Railway
@@ -825,14 +822,10 @@ minuto, así que el healthcheck no toca el disco en cada llamada.
 La versión sale de `package.json` y se congela al **construir**. El commit,
 solo si llega **al build**. La imagen publicada ya lo trae (se construye con
 el commit del tag), así que con ella `/api/health` responde
-`"commitVerified":true` sin hacer nada. Si construyes desde el código, pásalo
-como build arg `SOURCE_COMMIT` en cada despliegue. Con docker compose,
-`docker compose build --build-arg SOURCE_COMMIT=$(git rev-parse HEAD)` y
-luego `docker compose up -d --pull never` (sin `--build`, que reconstruiría
-sin él, y sin descargar la imagen publicada en lugar de la tuya); en Coolify o
-en cualquier otra plataforma, que el valor llegue como build arg
-`SOURCE_COMMIT`, no solo como variable de entorno. Así queda dentro del
-binario y sale con `"commitVerified":true`.
+`"commitVerified":true` sin hacer nada. El compose de Wachato construye desde
+`main` remoto sin fijar un commit: no afirma que el commit esté verificado.
+En otra plataforma, solo pasa `SOURCE_COMMIT` como build arg si el contexto
+del build está fijado realmente a ese mismo commit.
 
 Si el build no lo trajo, la app enseña el `SOURCE_COMMIT` que encuentre en el
 entorno al arrancar, pero **no lo da por bueno**: en la barra lateral aparece
@@ -853,9 +846,8 @@ SemVer sobre lo que le importa a quien opera una instancia:
 | **Parche** (`1.1.1`) | Arreglos y ajustes. Actualizar es redesplegar. |
 
 La versión vive en `package.json` y se sube en el PR que publica el cambio,
-junto con el default de `VOCERO_CRM_VERSION` en `docker-compose.yml` y la
-etiqueta de la imagen en `render.yaml`, `fly.toml` y `railway.toml` (dos
-pruebas exigen que coincidan) y su entrada en [`CHANGELOG.md`](CHANGELOG.md),
+junto con la etiqueta de la imagen en `render.yaml`, `fly.toml` y
+`railway.toml` (una prueba exige que coincidan) y su entrada en [`CHANGELOG.md`](CHANGELOG.md),
 que dice qué trae cada versión y qué hacer para actualizar. Al crear el tag
 `vX.Y.Z`, el CI publica la imagen `ghcr.io/kevinrivm/vocero-crm:X.Y.Z`.
 

@@ -63,7 +63,7 @@ dentro: README → «Instalación» → «Otras plataformas».
 | `OPENROUTER_API_TOKEN` | opcional: solo si el usuario lo dio y quiere dejarlo en el entorno. Lo normal es configurarlo después desde la app (Ajustes → IA) |
 | `OPENROUTER_MODEL` | solo si hay token en el entorno: sugiere `anthropic/claude-sonnet-4.5` u otro a elección |
 
-`DOMAIN` solo aplica en la Ruta B (para Caddy). `MEDIA_DIR` no va en la tabla
+`DOMAIN` solo aplica al perfil opcional de Caddy en la Ruta B. `MEDIA_DIR` no va en la tabla
 a propósito: la imagen ya la trae (`/data/media`, dentro del volumen de `/data`).
 
 Opcionales, que NO se preguntan (el usuario los agrega después; la guía de
@@ -140,24 +140,28 @@ migraciones corren solas al arrancar.
 ## Ruta B — docker compose (VPS con Docker)
 
 ```bash
-git clone https://github.com/kevinrivm/vocero-crm.git vocero && cd vocero
+git clone https://github.com/djcoraanco/wachato-crm-git.git wachato && cd wachato
 pnpm install && pnpm init-env --domain <dominio>   # .env con los secretos generados (Node 22 + pnpm)
-pnpm doctor                                         # cada ✗ dice cómo arreglarla; sale con 1 si algo falla
 docker compose up -d
 ```
 
 - Sin Node en el VPS: `cp .env.example .env` y rellena el dominio
   (`DOMAIN` y `APP_BASE_URL`) y los secretos del paso 2.
-- `docker compose up -d` descarga la imagen publicada de la versión que fija
-  `docker-compose.yml`. En un VPS ARM o en un fork con cambios propios, usa
-  `docker compose up -d --build`: la construye desde el código.
-- Caddy emite el certificado HTTPS automáticamente con `DOMAIN`.
+- `pnpm doctor` necesita acceso a la base; el host no resuelve el nombre
+  interno `postgres` de Compose sin configuración adicional.
+- `docker compose up -d` reconstruye la imagen desde `main` del repositorio
+  público de Wachato. Los cambios deben estar publicados y GitHub disponible
+  durante el build; un push por sí solo no despliega.
+- En aaPanel, configura HTTPS y proxy a `http://127.0.0.1:3000`, sin buffering
+  para el SSE de `/api/events`. Si cambias `WACHATO_PORT`, ajusta el proxy.
+  Sin aaPanel, usa `docker compose --profile caddy up -d` para HTTPS con
+  Caddy; no ejecutes ambos proxies en los puertos 80 y 443.
 - El compose ya monta el volumen `vocero_app_data` en `/data` (adjuntos, logo
   e icono): no hay que definir `MEDIA_DIR`.
 - Con el agente (Nea): `BOT_API_KEY`, `BRAIN_DISPATCH_URL` y
   `BRAIN_HEALTH_URL` en el `.env` (valores en `docs/migrar-a-2.0.md`) y
   `docker compose up -d`.
-- Verifica: `docker compose ps` (tres servicios healthy, cuatro con Nea) y
+- Verifica: `docker compose ps` (app y Postgres healthy; Nea también corre) y
   `https://<dominio>/api/health` → `{"ok":true,"version":"2.5.0",…}` (`"mediaWritable":true` confirma el volumen).
 
 ## Cierre (obligatorio decirlo al usuario)
