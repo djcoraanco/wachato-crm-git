@@ -39,10 +39,13 @@ export async function GET(
     if (id === "creativo-redirige") {
       // Un salto hacia un origen que no es el permitido y que, si se siguiera,
       // SÍ devolvería un PNG: este mismo servidor por otro nombre (localhost ↔
-      // 127.0.0.1). Así la prueba demuestra que el salto se revalida, y no que
-      // el destino falló; y no sale de la máquina.
+      // 127.0.0.1). La autoridad original viene de la configuración del mock;
+      // Next puede normalizar el hostname de `req.url` y volver inestable la
+      // prueba si se usa como referencia.
       const aqui = new URL(req.url);
-      const otro = aqui.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
+      const base = process.env.META_GRAPH_BASE_URL;
+      const hostOriginal = base ? new URL(base).hostname : "127.0.0.1";
+      const otro = hostOriginal === "localhost" ? "127.0.0.1" : "localhost";
       return new Response(null, {
         status: 302,
         headers: {

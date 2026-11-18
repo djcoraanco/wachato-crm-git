@@ -86,16 +86,23 @@ export async function borrarCampoTrato(organizationId: string, fieldId: string) 
   });
 }
 
-export async function leerValoresTrato(organizationId: string, fieldId: string, puedeAdministrar: boolean) {
+export async function leerValoresTrato(
+  organizationId: string, fieldId: string, dealId: string, puedeAdministrar: boolean
+) {
   return getDb().transaction(async (tx) => {
     const [campo] = await tx.select({ id: schema.salesDealField.id }).from(schema.salesDealField)
       .where(scoped(schema.salesDealField.organizationId, organizationId, eq(schema.salesDealField.id, fieldId),
         puedeAdministrar ? undefined : eq(schema.salesDealField.visibility, "equipo")))
       .for("share");
     if (!campo) throw new ErrorCampo(404, "not_found", "Campo no encontrado");
+    const [trato] = await tx.select({ id: schema.salesDeal.id }).from(schema.salesDeal)
+      .where(scoped(schema.salesDeal.organizationId, organizationId, eq(schema.salesDeal.id, dealId)))
+      .for("share");
+    if (!trato) throw new ErrorCampo(404, "not_found", "Trato no encontrado");
     return tx.select({ entidadId: schema.salesDealCustomValue.dealId, valor: schema.salesDealCustomValue.value })
       .from(schema.salesDealCustomValue)
-      .where(scoped(schema.salesDealCustomValue.organizationId, organizationId, eq(schema.salesDealCustomValue.fieldId, fieldId)));
+      .where(scoped(schema.salesDealCustomValue.organizationId, organizationId,
+        eq(schema.salesDealCustomValue.fieldId, fieldId), eq(schema.salesDealCustomValue.dealId, dealId)));
   });
 }
 

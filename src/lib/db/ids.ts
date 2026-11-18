@@ -7,6 +7,7 @@ const prefixes = {
   organization: "org",
   member: "mem",
   contact: "ct",
+  contactAvatar: "avatar",
   company: "emp",
   conversation: "cv",
   message: "msg",
@@ -32,6 +33,8 @@ const prefixes = {
   capiSettings: "capi",
   // Ajustes → IA (issue #85)
   aiCredentials: "aicred",
+  voiceTranscriptionCredentials: "vtcred",
+  voiceTranscriptionCache: "vtc",
   // 021 — despacho al cerebro
   dispatch: "dsp",
   // 026 — el aviso de que una conversación se eliminó

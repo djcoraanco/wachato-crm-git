@@ -5,6 +5,7 @@ import {
   Inbox,
   Kanban,
   ListChecks,
+  Link2,
   Settings,
   Sparkles,
   Users,
@@ -79,7 +80,10 @@ export function appNavGroups({
     { title: "Trabajo", items: trabajo },
     { title: "Agente", items: agente },
     // 019 — Se mide al final: primero se atiende y se organiza.
-    { items: [{ href: "/results", label: "Resultados", icon: ChartColumn }] },
+    { items: [
+      { href: "/results", label: "Resultados", icon: ChartColumn },
+      { href: "/connections", label: "Conexiones", icon: Link2 },
+    ] },
   ];
 }
 

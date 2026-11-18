@@ -6,6 +6,12 @@
   organización y referencia al contacto. Atributos personales opcionales
   separados del contacto que lee el bot; no se interpreta ausencia como
   consentimiento.
+- `contact_avatar`: como máximo una fila por contacto y organización. Un ID
+  aleatorio identifica el archivo privado; las huellas del disco y del bucket
+  evitan borrar en ubicaciones distintas. Los estados `pendiente`, `activo` y
+  `eliminando` conservan la referencia ante fallos. Las claves foráneas
+  restringen el borrado del contacto y de la organización mientras exista.
+  Los contactos anteriores no necesitan conversión ni archivo asociado.
 - `company`: identificador, organización, razón social, identificación fiscal,
   teléfono, dirección y matriz opcionales; timestamps.
 - `company_contact`: identificador de organización y par empresa/contacto
@@ -15,6 +21,10 @@
   eliminan sus vínculos; no se elimina la otra entidad.
 - La matriz debe pertenecer a la misma organización. La comprobación de ciclos
   corresponde al servicio de edición, transaccional y probado antes de exponerlo.
+- Las etiquetas del contacto son una lista JSONB propia del contacto, vacía por
+  defecto, de hasta 30 valores únicos de 40 caracteres. Se editan desde el
+  contacto y se aplican por igual en el listado y sus exportaciones; no cambian
+  la ficha ni el contrato del bot.
 
 ## Campos personalizados (2.2)
 

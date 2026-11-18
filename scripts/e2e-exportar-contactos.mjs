@@ -35,6 +35,9 @@ export async function probarExportacion({ context, anonimo, organizacionId, url,
       values (${'ad_export_' + suffix}, ${organizacionId}, ${'ct_export_' + suffix + '_3'}, ${'cv_export_' + suffix}, 'ad', '{}')`;
     await db`insert into contact (id, organization_id, name, wa_identity)
       values (${'ct_ajeno_' + suffix}, ${otra}, 'Exportación ajena', 'ajena')`;
+    await db`update contact set tags = '["VIP", "Clínica"]'::jsonb
+      where organization_id = ${organizacionId} and id in (${'ct_export_' + suffix + '_2'}, ${'ct_export_' + suffix + '_205'})`;
+    await db`update contact set tags = '["Secreta"]'::jsonb where organization_id = ${otra}`;
     await db`insert into contact (id, organization_id, name, wa_identity)
       values (${'ct_emoji_' + suffix}, ${organizacionId}, 'Prueba 🚀', ${'emoji-' + suffix})`;
 
@@ -55,6 +58,16 @@ export async function probarExportacion({ context, anonimo, organizacionId, url,
     assert.equal(tercero[5], "Anuncio (deducida)");
     assert.equal(tercero[7], "2024-01-02T03:04:05.000Z");
     assert.ok((await (await context.get(`/api/contacts?q=emoji-${suffix}`)).json()).contacts.some((fila) => fila.id === `ct_emoji_${suffix}`));
+    const etiquetas = (await (await context.get("/api/contacts/tags")).json()).etiquetas;
+    assert.ok(etiquetas.includes("VIP") && etiquetas.includes("Clínica"));
+    assert.ok(!etiquetas.includes("Secreta"));
+    const porEtiqueta = await excel(await context.get(`${base}&tag=VIP&format=xlsx`));
+    assert.equal(porEtiqueta.length, 3);
+    assert.ok(porEtiqueta.slice(1).every((fila) => fila[4] === "VIP, Clínica"));
+    const porBusqueda = (await (await context.get("/api/contacts?q=clinica")).json()).contacts;
+    assert.equal(porBusqueda.length, 2);
+    assert.equal((await context.patch(`/api/contacts/ct_export_${suffix}_2`, { data: { tags: ["VIP", "vip"] } })).status(), 422);
+    assert.equal((await context.patch(`/api/contacts/ct_export_${suffix}_2`, { data: { tags: ["x".repeat(41)] } })).status(), 422);
     const archivados = await excel(await context.get(`${base}&archived=true&format=xlsx`));
     assert.equal(archivados.length, 207);
     const canal = await excel(await context.get(`${base}&channel=instagram&format=xlsx`));
@@ -100,6 +113,23 @@ export async function probarExportacion({ context, anonimo, organizacionId, url,
         const libro = new ExcelJS.Workbook();
         await libro.xlsx.readFile(await archivo.path());
         assert.equal(libro.getWorksheet("Contactos").rowCount, 206);
+        const fila = page.getByRole("listitem").filter({ hasText: "Exportación 205" });
+        await fila.getByRole("button", { name: "Editar", exact: true }).click();
+        await page.getByLabel("Etiquetas, separadas por comas").fill("Especial, VIP");
+        await page.getByRole("button", { name: "Guardar", exact: true }).click();
+        const filtroAplicado = page.waitForResponse((response) =>
+          response.url().includes("/api/contacts?") && response.url().includes("tag=Especial"));
+        await page.getByLabel("Filtrar por etiqueta").selectOption("Especial");
+        await filtroAplicado;
+        await page.getByText("Exportación 205", { exact: true }).waitFor();
+        assert.equal(await page.getByRole("listitem").count(), 1);
+        const descargaFiltrada = page.waitForEvent("download");
+        await page.getByRole("button", { name: "Descargar Excel" }).click();
+        const filtrado = new ExcelJS.Workbook();
+        await filtrado.xlsx.readFile(await (await descargaFiltrada).path());
+        assert.equal(filtrado.getWorksheet("Contactos").rowCount, 2);
+        assert.equal(filtrado.getWorksheet("Contactos").getCell("E2").value, "Especial, VIP");
+        await page.getByLabel("Filtrar por etiqueta").selectOption("");
         await page.getByLabel("Buscar contacto").fill("sin_coincidencias_e2e");
         await page.getByRole("button", { name: "Descargar PDF" }).click();
         await page.getByRole("alert").getByText("No hay contactos con esos filtros").waitFor();

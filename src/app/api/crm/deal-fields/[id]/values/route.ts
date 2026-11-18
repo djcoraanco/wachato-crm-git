@@ -9,9 +9,14 @@ type Params = { params: Promise<{ id: string }> };
 const valorSchema = z.object({ entidadId: z.string().min(1).max(100), valor: z.unknown() }).strict()
   .refine((body) => Object.prototype.hasOwnProperty.call(body, "valor"), "Falta el valor");
 const borrarSchema = z.object({ entidadId: z.string().min(1).max(100) }).strict();
-export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
+export const GET = withAuth(async (session, req: Request, ctx: Params) => {
+  const ids = new URL(req.url).searchParams.getAll("entidadId");
+  const entidadId = z.string().min(1).max(100).safeParse(ids.length === 1 ? ids[0] : null);
+  if (!entidadId.success) return apiError(422, "invalid_entity_id", "Indica un trato válido");
   try {
-    return Response.json({ valores: await leerValoresTrato(session.organizationId, (await ctx.params).id, canConfigure(session.role)) });
+    return Response.json({ valores: await leerValoresTrato(
+      session.organizationId, (await ctx.params).id, entidadId.data, canConfigure(session.role)
+    ) });
   } catch (error) {
     if (error instanceof ErrorCampo) return apiError(error.status, error.code, error.message);
     throw error;

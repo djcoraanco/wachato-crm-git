@@ -137,9 +137,11 @@ export type FichaDto = Record<string, FichaValue>;
 export type ContactDto = {
   id: string;
   name: string;
+  avatarId?: string | null;
   /** null en contactos que llegaron solo con BSUID (003). */
   phone: string | null;
   notes: string | null;
+  tags?: string[];
   /** Etapa del embudo del lead asociado; null si el contacto no tiene lead. */
   stageName: string | null;
   archivedAt: string | null;

@@ -9,6 +9,10 @@ export const POR_VENCER_MS = 2 * 3_600_000;
 
 type ConVentana = { windowOpen: boolean; windowRemainingMs: number };
 
+export function atencionManual(c: { aiEnabled: boolean; handoffAt: string | null }): boolean {
+  return !c.aiEnabled || c.handoffAt !== null;
+}
+
 /** La ventana sigue abierta pero le quedan 2 h o menos. */
 export function porVencer(c: ConVentana): boolean {
   return c.windowOpen && c.windowRemainingMs > 0 && c.windowRemainingMs <= POR_VENCER_MS;

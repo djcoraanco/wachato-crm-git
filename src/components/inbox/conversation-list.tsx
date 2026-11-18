@@ -15,7 +15,7 @@ import { emptyInboxDescription, formatTime, previewText } from "./helpers";
 import { EVENTO_BORRADOR, leerBorrador } from "@/lib/borradores";
 import { atajoBandeja, esCampoDeTexto, sirveEscribiendo, vecina } from "@/lib/atajos";
 import { hayDialogoAbierto } from "@/components/atajos-globales";
-import { etiquetaVence, porVencer } from "@/lib/filtros-bandeja";
+import { atencionManual, etiquetaVence, porVencer } from "@/lib/filtros-bandeja";
 
 /* Puntos de etapa: los tokens del tema, no hex copiados del tema claro —
    así siguen al acento white-label y se recalculan en oscuro. */
@@ -100,6 +100,7 @@ export function ConversationList({
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [soloPorVencer, setSoloPorVencer] = useState(false);
   const [soloAnuncios, setSoloAnuncios] = useState(false);
+  const [soloManual, setSoloManual] = useState(false);
   const [menuFiltros, setMenuFiltros] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   // El menú se cierra al hacer clic fuera o con Escape.
@@ -192,7 +193,8 @@ export function ConversationList({
   // Lo del menú «Filtrar» se aplica antes de las pestañas: «Todas» y «No
   // leídas» cuentan dentro de lo filtrado.
   const filtrado = inInbox.filter(
-    (c) => (!soloPorVencer || porVencer(c)) && (!soloAnuncios || c.anuncio !== null)
+    (c) => (!soloPorVencer || porVencer(c)) && (!soloAnuncios || c.anuncio !== null) &&
+      (!soloManual || atencionManual(c))
   );
   const unreadCount = filtrado.filter((c) => c.unreadCount > 0).length;
   const visible = filter === "unread" ? filtrado.filter((c) => c.unreadCount > 0) : filtrado;
@@ -201,11 +203,13 @@ export function ConversationList({
     { id: "all", label: "Todas", count: filtrado.length },
     { id: "unread", label: "No leídas", count: unreadCount },
   ];
-  const nFiltros = (stage !== "all" ? 1 : 0) + (soloPorVencer ? 1 : 0) + (soloAnuncios ? 1 : 0);
+  const nFiltros = (stage !== "all" ? 1 : 0) + (soloPorVencer ? 1 : 0) +
+    (soloAnuncios ? 1 : 0) + (soloManual ? 1 : 0);
   function limpiarFiltros() {
     setStage("all");
     setSoloPorVencer(false);
     setSoloAnuncios(false);
+    setSoloManual(false);
   }
   // Con un solo canal encendido no hay bandejas que distinguir: ni marca en
   // los renglones ni filtro. La pantalla queda exactamente como antes de 014.
@@ -224,11 +228,9 @@ export function ConversationList({
   }
 
   return (
-    // 061 · D3 — El buscador en cápsula, aparte y arriba; debajo, la lista en
-    // su tarjeta. En el teléfono va igual, sin el marco alrededor.
-    <div className="flex h-full flex-col bg-background lg:gap-[var(--hueco)] lg:bg-transparent">
-      <div className="px-4 pt-3 lg:p-0">
-        <div className="flex items-center gap-2 rounded-full border border-border-strong bg-chip px-3.5 py-[7px] shadow-sm transition-[border-color,box-shadow] focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand-soft lg:tarjeta lg:rounded-full lg:border-transparent lg:px-4 lg:py-3">
+    <div className="flex h-full flex-col bg-card">
+      <div className="px-4 pt-3">
+        <div className="flex items-center gap-2 rounded-full border border-border-strong bg-chip px-3.5 py-[7px] shadow-sm transition-[border-color,box-shadow] focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand-soft">
           <Search className="h-4 w-4 shrink-0 text-text-3" strokeWidth={1.7} />
           <input
             ref={inputRef}
@@ -249,7 +251,7 @@ export function ConversationList({
           )}
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col bg-background lg:tarjeta lg:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
       <header className="border-b px-4 pb-3 pt-3.5">
         <div className="flex items-center gap-2">
           <h2 className="text-[17px] font-bold tracking-tight">Bandeja</h2>
@@ -358,6 +360,16 @@ export function ConversationList({
                     </select>
                   </label>
                 )}
+                <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+                  <input
+                    type="checkbox"
+                    checked={soloManual}
+                    onChange={(e) => setSoloManual(e.target.checked)}
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="flex-1">Atención manual</span>
+                  <span className="font-mono text-[11px] text-text-3">{inInbox.filter(atencionManual).length}</span>
+                </label>
                 {/* Como antes: sin ninguna, la casilla no aparece (salvo que esté marcada). */}
                 {(venciendo.length > 0 || soloPorVencer) && (
                   <label className="flex cursor-pointer items-center gap-2 text-[13px]">
@@ -383,9 +395,6 @@ export function ConversationList({
                     <span className="font-mono text-[11px] text-text-3">{deAnuncios.length}</span>
                   </label>
                 )}
-                {stages.length === 0 && venciendo.length === 0 && deAnuncios.length === 0 && nFiltros === 0 && (
-                  <p className="text-[13px] text-text-3">Todavía no hay nada por qué filtrar.</p>
-                )}
                 {nFiltros > 0 && (
                   <button
                     type="button"
@@ -410,6 +419,9 @@ export function ConversationList({
             )}
             {soloAnuncios && (
               <FiltroPuesto texto="De anuncios" onQuitar={() => setSoloAnuncios(false)} />
+            )}
+            {soloManual && (
+              <FiltroPuesto texto="Atención manual" onQuitar={() => setSoloManual(false)} />
             )}
           </div>
         )}

@@ -30,16 +30,27 @@
 
 - [X] **2.1** Diseñar e implementar migraciones aditivas para empresas y vínculos N:M empresa-contacto.
 - [X] **2.2** Implementar definiciones/valores de campos personalizados con validación Zod y almacenamiento/indexación adecuados (contactos y empresas; tratos se integra en 2.3, interfaz en 2.4).
-- [>] **2.3** Diseñar pipelines múltiples, tratos y tareas/actividades sin romper la semántica actual de leads y etapas.
-- [>] **2.4** Implementar vistas de Contactos y Pipeline según el prototipo, con exportaciones XLSX/PDF seguras si se aprueban dependencias/formatos.
-- [ ] **2.5** Ejecutar gates y pruebas de regresión de tenant, API y migraciones.
+- [X] **2.3** Diseñar pipelines múltiples, tratos y tareas/actividades sin romper la semántica actual de leads y etapas.
+- [X] **2.4** Implementar vistas de Contactos y Pipeline según el prototipo, con exportaciones XLSX/PDF seguras si se aprueban dependencias/formatos.
+- [X] **2.5** Ejecutar gates y pruebas de regresión de tenant, API y migraciones.
 
 ## Fase 3 — Bandeja en tiempo real, medios vocales y conexiones
 
-- [ ] **3.1** Alinear Bandeja con el prototipo preservando contrato de mensajes, SSE, límites por canal, ventana y sandbox.
-- [ ] **3.2** Diseñar e implementar transcripción de notas de voz entrantes; proveedor externo opcional, datos minimizados y envío al cerebro con marcador explícito.
-- [ ] **3.3** Construir la vista de Conexiones/Meta usando estados reales de canales, plantillas y CAPI.
-- [ ] **3.4** Ejecutar gates, pruebas de contratos y flujos E2E afectados.
+- [X] **3.1** Alinear Bandeja con el prototipo preservando contrato de mensajes, SSE, límites por canal, ventana y sandbox.
+- [X] **3.2** Diseñar e implementar transcripción de notas de voz entrantes; proveedor externo opcional, datos minimizados y envío al cerebro con marcador explícito.
+- [X] **3.3** Construir la vista de Conexiones/Meta usando estados reales de canales, plantillas y CAPI.
+- [X] **3.4** Ejecutar gates, pruebas de contratos y flujos E2E afectados.
+
+Avance verificado: Bandeja con filtro de atención manual y distribución
+responsiva de lista, hilo y detalles; Conexiones muestra canales habilitados,
+plantillas y actividad CAPI tenant-scoped sin inventar estados de Meta. La
+transcripción opcional está apagada por defecto, cifra credenciales/caché y
+degrada sin bloquear el despacho. Las pruebas aisladas de Chromium cubrieron
+permisos, móvil, errores y banderas; el self-test integral aprobó **295/295**.
+Gates finales: `pnpm typecheck`, `pnpm lint`, `pnpm test` (132 archivos, 1431
+pruebas) y `pnpm build` con trazado de exportaciones, todos aprobados. Evidencia
+detallada: [Fase 2](./implementation/02-core-crm.md) y
+[Fase 3](./implementation/03-bandeja-y-regresion.md).
 
 ## Fase 4 — Motor modular nativo
 

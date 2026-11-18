@@ -39,6 +39,10 @@ export type MensajeDelEvento = {
   location?: UbicacionDelEvento;
   /** 031 — Solo si `type` es `contacts`: los nombres de las tarjetas. */
   contacts?: { name: string }[];
+  /** 066 — Solo cuando la transcripción está activada explícitamente. */
+  transcription?:
+    | { status: "ready"; text: string }
+    | { status: "unavailable" };
 };
 
 /**
@@ -92,7 +96,15 @@ export type MensajeParaEvento = {
     fileName?: string | null;
     /** 031 — `media_asset.payload`: la ubicación o las tarjetas tal como llegaron. */
     payload?: unknown;
+    /** 066 — Metadatos internos, nunca serializados al cerebro. */
+    assetId?: string | null;
+    fileSize?: number | null;
+    fetchStatus?: "available" | "pending" | "failed" | null;
   } | null;
+  /** 066 — Propiedad aditiva, presente solo con el conector activado. */
+  transcription?:
+    | { status: "ready"; text: string }
+    | { status: "unavailable" };
 };
 
 /**
@@ -169,6 +181,7 @@ function mensajeDelEvento(m: MensajeParaEvento): MensajeDelEvento {
     const nombres = nombresDeTarjetas(m.media?.payload);
     if (nombres.length) evento.contacts = nombres.map((name) => ({ name }));
   }
+  if (m.transcription) evento.transcription = m.transcription;
   return evento;
 }
 

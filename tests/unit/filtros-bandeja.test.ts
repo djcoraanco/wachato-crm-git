@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { etiquetaVence, POR_VENCER_MS, porVencer } from "@/lib/filtros-bandeja";
+import { atencionManual, etiquetaVence, POR_VENCER_MS, porVencer } from "@/lib/filtros-bandeja";
+
+describe("atención manual", () => {
+  it("incluye conversaciones con IA pausada o traspasadas a una persona", () => {
+    expect(atencionManual({ aiEnabled: false, handoffAt: null })).toBe(true);
+    expect(atencionManual({ aiEnabled: true, handoffAt: "2026-01-01T00:00:00Z" })).toBe(true);
+    expect(atencionManual({ aiEnabled: true, handoffAt: null })).toBe(false);
+  });
+});
 
 /** 052 — El filtro «Por vencer» y el aviso «Vence en…» de la fila. */
 

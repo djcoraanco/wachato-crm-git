@@ -41,6 +41,7 @@ export type ResultadoEliminar =
     }
   | { ok: false; motivo: "no_encontrada" }
   | { ok: false; motivo: "datos_comerciales" }
+  | { ok: false; motivo: "avatar_pendiente" }
   | { ok: false; motivo: "cita_pendiente"; cuando: Date };
 
 export async function eliminarConversacion(
@@ -132,6 +133,10 @@ export async function eliminarConversacion(
     if (cita) return { ok: false, motivo: "cita_pendiente", cuando: cita.cuando };
 
     if (todoElContacto) {
+      const [avatar] = await tx.select({ id: schema.contactAvatar.id }).from(schema.contactAvatar)
+        .where(scoped(schema.contactAvatar.organizationId, organizationId,
+          eq(schema.contactAvatar.contactId, contact.id))).limit(1);
+      if (avatar) return { ok: false, motivo: "avatar_pendiente" };
       const leads = await tx.select({ id: schema.lead.id }).from(schema.lead)
         .where(scoped(schema.lead.organizationId, organizationId,
           eq(schema.lead.contactId, contact.id)))

@@ -54,6 +54,10 @@ const patchSchema = z.object({
   /** 027 — El agente no le responde a esta persona; se lleva a su conversación. */
   aiPaused: z.boolean().optional(),
   archived: z.boolean().optional(),
+  tags: z.array(z.string().trim().min(1).max(40).refine((value) => !value.includes(","), "La etiqueta no puede contener comas"))
+    .max(30)
+    .refine((tags) => new Set(tags.map((tag) => tag.toLocaleLowerCase("es"))).size === tags.length, "No repitas etiquetas")
+    .optional(),
   /**
    * Parche de la ficha: solo las claves que cambian. `null` borra una clave.
    * No es un reemplazo — el agente sigue escribiendo mientras el dueño
@@ -91,6 +95,7 @@ export const PATCH = withAuth(async (session, req: Request, ctx: Params) => {
     set.archivedAt = body.data.archived ? new Date() : null;
   }
   if (body.data.aiPaused !== undefined) set.aiPaused = body.data.aiPaused;
+  if (body.data.tags !== undefined) set.tags = body.data.tags;
 
   const db = getDb();
   const updated = await db

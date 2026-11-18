@@ -303,7 +303,7 @@ export function Composer({
         role="region"
         aria-label="Chat: adjuntar imagen"
         // 061 — El hilo con su compositor es una tarjeta en escritorio.
-        className="relative flex min-h-0 flex-1 flex-col bg-chat lg:tarjeta lg:overflow-hidden"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-chat"
         onDragEnter={(e) => {
           if (!isFileDrag(e)) return;
           e.preventDefault();

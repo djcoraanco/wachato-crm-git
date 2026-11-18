@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CamposPersonalizadosEditor } from "./campos-personalizados";
+import { EditorAvatar } from "./avatar-contacto";
 
 type Perfil = {
   firstName: string | null;
@@ -22,7 +24,17 @@ const vacio: Perfil = {
   birthDate: null, preferredChannel: null, address: null, consents: {},
 };
 
-export function PerfilContactoDialog({ id, nombre, onClose }: { id: string; nombre: string; onClose: () => void }) {
+export function PerfilContactoDialog({
+  id,
+  nombre,
+  onAvatarCambio,
+  onClose,
+}: {
+  id: string;
+  nombre: string;
+  onAvatarCambio: () => void;
+  onClose: () => void;
+}) {
   const [perfil, setPerfil] = useState<Perfil>(vacio);
   const [telefonos, setTelefonos] = useState("");
   const [correos, setCorreos] = useState("");
@@ -100,6 +112,7 @@ export function PerfilContactoDialog({ id, nombre, onClose }: { id: string; nomb
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {cargando ? <p>Cargando perfil…</p> : cargaCorrecta && (
           <>
+            <EditorAvatar id={id} nombre={nombre} onCambio={onAvatarCambio} />
             <label className="block text-sm">Nombre
               <Input value={perfil.firstName ?? ""} onChange={(e) => setPerfil({ ...perfil, firstName: e.target.value })} />
             </label>
@@ -148,6 +161,7 @@ export function PerfilContactoDialog({ id, nombre, onClose }: { id: string; nomb
                 ? `Estado registrado: ${perfil.consents.whatsapp.granted ? "autorizado" : "no autorizado"} (${new Date(perfil.consents.whatsapp.recordedAt).toLocaleDateString("es-MX")})`
                 : "No hay consentimiento de WhatsApp registrado."}
             </p>
+            <CamposPersonalizadosEditor entidad="contacto" entidadId={id} />
           </>
         )}
         <div className="flex justify-end gap-2">

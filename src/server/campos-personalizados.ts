@@ -27,10 +27,15 @@ function dto(campo: typeof schema.customField.$inferSelect) {
   };
 }
 
-export async function listarCampos(organizationId: string, puedeAdministrar: boolean) {
+export async function listarCampos(
+  organizationId: string,
+  puedeAdministrar: boolean,
+  entidad?: "contacto" | "empresa"
+) {
   const filas = await getDb().select().from(schema.customField)
     .where(scoped(schema.customField.organizationId, organizationId,
-      puedeAdministrar ? undefined : eq(schema.customField.visibility, "equipo")))
+      puedeAdministrar ? undefined : eq(schema.customField.visibility, "equipo"),
+      entidad ? eq(schema.customField.entity, entidad) : undefined))
     .orderBy(asc(schema.customField.name), asc(schema.customField.id));
   return filas.map(dto);
 }
@@ -58,7 +63,12 @@ export async function crearCampo(organizationId: string, campo: DefinicionCampo)
   }
 }
 
-export async function leerValoresCampo(organizationId: string, fieldId: string, puedeAdministrar: boolean) {
+export async function leerValoresCampo(
+  organizationId: string,
+  fieldId: string,
+  puedeAdministrar: boolean,
+  entidadId?: string
+) {
   return getDb().transaction(async (tx) => {
     const [campo] = await tx.select().from(schema.customField)
       .where(scoped(schema.customField.organizationId, organizationId, eq(schema.customField.id, fieldId),
@@ -70,13 +80,17 @@ export async function leerValoresCampo(organizationId: string, fieldId: string, 
         entidadId: schema.contactCustomValue.contactId,
         valor: schema.contactCustomValue.value,
       }).from(schema.contactCustomValue)
-        .where(scoped(schema.contactCustomValue.organizationId, organizationId, eq(schema.contactCustomValue.fieldId, fieldId)));
+        .where(scoped(schema.contactCustomValue.organizationId, organizationId,
+          eq(schema.contactCustomValue.fieldId, fieldId),
+          entidadId ? eq(schema.contactCustomValue.contactId, entidadId) : undefined));
     }
     return tx.select({
       entidadId: schema.companyCustomValue.companyId,
       valor: schema.companyCustomValue.value,
     }).from(schema.companyCustomValue)
-      .where(scoped(schema.companyCustomValue.organizationId, organizationId, eq(schema.companyCustomValue.fieldId, fieldId)));
+    .where(scoped(schema.companyCustomValue.organizationId, organizationId,
+      eq(schema.companyCustomValue.fieldId, fieldId),
+      entidadId ? eq(schema.companyCustomValue.companyId, entidadId) : undefined));
   });
 }
 

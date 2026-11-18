@@ -1,0 +1,1 @@
+ALTER TABLE "contact" ADD COLUMN "tags" jsonb DEFAULT '[]'::jsonb NOT NULL;

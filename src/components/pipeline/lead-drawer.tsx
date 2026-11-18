@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PriorityPicker } from "./priority-picker";
 import type { BoardLead } from "./pipeline-client";
+import { ContactActivities } from "./contact-activities";
 
 /**
  * El trato, abierto, sin salir del tablero.
@@ -274,6 +275,8 @@ export function LeadDrawer({
 
           {/* Qué se sabe */}
           <FichaPanel ficha={ficha} onSave={guardarFicha} />
+
+          <ContactActivities contactId={contactId} />
         </div>
       </aside>
     </>

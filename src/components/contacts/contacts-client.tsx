@@ -18,7 +18,7 @@ import {
 import type { ContactDto } from "@/lib/types";
 import { CHANNEL_LABEL, CHANNEL_ORDER, type Channel } from "@/lib/channels";
 import { formatPhone } from "@/lib/utils";
-import { ContactAvatar } from "@/components/avatar";
+import { AvatarContacto } from "./avatar-contacto";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -32,14 +32,17 @@ import { NewContactDialog } from "./new-contact-dialog";
 import { StartConversation } from "./start-conversation";
 import { EmpresasClient } from "./empresas-client";
 import { PerfilContactoDialog } from "./perfil-contacto-dialog";
+import { AdministradorCamposButton } from "./campos-personalizados";
 
-export function ContactsClient() {
+export function ContactsClient({ puedeAdministrarCampos }: { puedeAdministrarCampos: boolean }) {
   const router = useRouter();
   const [contacts, setContacts] = useState<ContactDto[]>([]);
   const [mostrarEmpresas, setMostrarEmpresas] = useState(false);
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState("all");
   const [channel, setChannel] = useState<Channel | "all">("all");
+  const [tag, setTag] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [stages, setStages] = useState<string[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,14 +73,29 @@ export function ContactsClient() {
     })();
   }, []);
 
+  const cargarEtiquetas = useCallback(async () => {
+    try {
+      const res = await fetch("/api/contacts/tags");
+      if (!res.ok) throw new Error("No se pudieron cargar las etiquetas");
+      const datos = (await res.json()) as { etiquetas: string[] };
+      setTags(datos.etiquetas);
+    } catch (err) {
+      setError(err instanceof TypeError ? "No se pudo conectar para cargar las etiquetas"
+        : err instanceof Error ? err.message : "No se pudieron cargar las etiquetas");
+    }
+  }, []);
+
+  useEffect(() => { void cargarEtiquetas(); }, [cargarEtiquetas]);
+
   const filtros = useCallback(() => {
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     if (stage !== "all") params.set("stage", stage);
     if (channel !== "all") params.set("channel", channel);
+    if (tag) params.set("tag", tag);
     if (showArchived) params.set("archived", "true");
     return params;
-  }, [query, stage, channel, showArchived]);
+  }, [query, stage, channel, tag, showArchived]);
 
   const refetch = useCallback(async () => {
     const numero = ++peticionRef.current;
@@ -183,6 +201,7 @@ export function ContactsClient() {
         throw new Error(data?.error?.message ?? "No se pudo actualizar el contacto");
       }
       await refetch();
+      if (body.tags !== undefined) await cargarEtiquetas();
       return true;
     } catch (err) {
       setError(err instanceof TypeError ? "No se pudo conectar para actualizar el contacto"
@@ -191,7 +210,8 @@ export function ContactsClient() {
     }
   }
 
-  if (mostrarEmpresas) return <EmpresasClient onVolver={() => setMostrarEmpresas(false)} />;
+  if (mostrarEmpresas) return <EmpresasClient onVolver={() => setMostrarEmpresas(false)}
+    puedeAdministrarCampos={puedeAdministrarCampos} />;
 
   return (
     <div className="flex h-full flex-col">
@@ -201,6 +221,7 @@ export function ContactsClient() {
           <Button size="sm" variant="outline" onClick={() => setMostrarEmpresas(true)}>
             Empresas
           </Button>
+          <AdministradorCamposButton entidad="contacto" puedeAdministrar={puedeAdministrarCampos} />
           <Button size="sm" onClick={() => setCreando(true)}>
             <UserPlus className="mr-1.5 h-4 w-4" strokeWidth={1.8} />
             Nuevo contacto
@@ -242,6 +263,15 @@ export function ContactsClient() {
             </select>
           )}
           <select
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            aria-label="Filtrar por etiqueta"
+            className="h-9 rounded-md border border-input bg-card px-2 text-sm"
+          >
+            <option value="">Todas las etiquetas</option>
+            {tags.map((etiqueta) => <option key={etiqueta} value={etiqueta}>{etiqueta}</option>)}
+          </select>
+          <select
             value={channel}
             onChange={(e) => setChannel(e.target.value as Channel | "all")}
             aria-label="Filtrar por canal"
@@ -254,7 +284,7 @@ export function ContactsClient() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               ref={inputRef}
-              placeholder="Buscar por nombre, teléfono o usuario…"
+              placeholder="Buscar por nombre, teléfono, usuario o etiqueta…"
               aria-label="Buscar contacto"
               defaultValue=""
               onChange={(e) => setQuery(e.target.value)}
@@ -266,11 +296,11 @@ export function ContactsClient() {
 
       {error && <p role="alert" className="px-4 pt-3 text-sm text-destructive">{error}</p>}
       <p className="px-4 pt-3 text-xs text-muted-foreground">
-        La descarga incluye todos los contactos que coinciden con los filtros, incluso los aún no cargados. Las etiquetas todavía no están disponibles.
+        La descarga incluye todos los contactos que coinciden con los filtros, incluso los aún no cargados.
       </p>
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {contacts.length === 0 ? (
-          query.trim() || stage !== "all" || channel !== "all" ? (
+          query.trim() || stage !== "all" || channel !== "all" || tag ? (
             <EmptyState
               icon={Search}
               className="h-full"
@@ -282,6 +312,7 @@ export function ContactsClient() {
                   {query.trim() && stage !== "all" ? " en" : ""}
                   {stage !== "all" ? ` la etapa «${stage}»` : ""}.
                   {channel !== "all" ? ` Canal: ${CHANNEL_LABEL[channel]}.` : ""}
+                  {tag ? ` Etiqueta: ${tag}.` : ""}
                 </>
               }
             />
@@ -300,7 +331,7 @@ export function ContactsClient() {
                 key={c.id}
                 className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-3 sm:flex-nowrap sm:gap-x-4 sm:px-4"
               >
-                <ContactAvatar name={c.name} seed={c.id} />
+                <AvatarContacto nombre={c.name} id={c.id} avatarId={c.avatarId} />
                 {/* El 60% mínimo es lo que empuja los botones a su propio
                     renglón en el teléfono en vez de exprimir el nombre. */}
                 <div className="min-w-[60%] flex-1 sm:min-w-0">
@@ -312,6 +343,7 @@ export function ContactsClient() {
                     {c.stageName && (
                       <Badge variant="outline">{c.stageName}</Badge>
                     )}
+                    {c.tags?.map((etiqueta) => <Badge key={etiqueta} variant="secondary">{etiqueta}</Badge>)}
                     {c.archivedAt && (
                       <Badge variant="secondary">Archivado</Badge>
                     )}
@@ -395,7 +427,7 @@ export function ContactsClient() {
           }}
         />
       )}
-      {perfil && <PerfilContactoDialog id={perfil.id} nombre={perfil.name} onClose={() => setPerfil(null)} />}
+      {perfil && <PerfilContactoDialog id={perfil.id} nombre={perfil.name} onAvatarCambio={() => void refetch()} onClose={() => setPerfil(null)} />}
 
       {escribiendo && (
         <div
@@ -460,10 +492,11 @@ function EditDialog({
   contact: ContactDto;
   error: string | null;
   onClose: () => void;
-  onSave: (patch: { name: string; notes: string; aiPaused?: boolean }) => Promise<void>;
+  onSave: (patch: { name: string; notes: string; tags: string[]; aiPaused?: boolean }) => Promise<void>;
 }) {
   const [name, setName] = useState(contact.name);
   const [notes, setNotes] = useState(contact.notes ?? "");
+  const [tags, setTags] = useState((contact.tags ?? []).join(", "));
   const [aiPaused, setAiPaused] = useState(contact.aiPaused ?? false);
 
   return (
@@ -487,6 +520,10 @@ function EditDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="edit-tags">Etiquetas, separadas por comas</label>
+            <Input id="edit-tags" value={tags} onChange={(e) => setTags(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="edit-notes">
@@ -525,6 +562,7 @@ function EditDialog({
               void onSave({
                 name: name.trim(),
                 notes,
+                tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
                 // Solo si cambió: mandarlo siempre reescribiría el interruptor
                 // de la Bandeja cada vez que alguien corrige un nombre.
                 ...(aiPaused !== (contact.aiPaused ?? false) ? { aiPaused } : {}),

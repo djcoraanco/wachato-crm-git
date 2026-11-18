@@ -5,8 +5,14 @@ import { crearCampo, ErrorCampo, listarCampos } from "@/server/campos-personaliz
 
 export const dynamic = "force-dynamic";
 
-export const GET = withAuth(async (session) => {
-  return Response.json({ campos: await listarCampos(session.organizationId, canConfigure(session.role)) });
+export const GET = withAuth(async (session, req: Request) => {
+  const entidad = new URL(req.url).searchParams.get("entidad");
+  if (entidad !== null && entidad !== "contacto" && entidad !== "empresa") {
+    return apiError(422, "invalid_entity", "Entidad de campo inválida");
+  }
+  return Response.json({
+    campos: await listarCampos(session.organizationId, canConfigure(session.role), entidad ?? undefined),
+  });
 });
 
 export const POST = withAuth(async (session, req: Request) => {

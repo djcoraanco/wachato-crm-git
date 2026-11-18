@@ -81,13 +81,36 @@ try {
   assert.ok(vinculoRestante.empresa.contactos.some((item) => item.id === contacto.id));
   await esperaStatus(await anonimo.get("/api/crm/companies"), 401, "Empresas sin sesión");
   if (process.env.WACHATO_TEST_CHROME) {
-    const browser = await chromium.launch({ executablePath: process.env.WACHATO_TEST_CHROME, headless: true });
+    const browser = await chromium.launch({
+      executablePath: process.env.WACHATO_TEST_CHROME, headless: true,
+      downloadsPath: path.join(process.cwd(), ".e2e-descargas"),
+    });
     const navegador = await browser.newContext({
       storageState: await context.storageState(), baseURL: url, viewport: { width: 390, height: 844 },
     });
     try {
       const page = await navegador.newPage();
       await page.goto("/contacts");
+      await page.getByRole("button", { name: "Campos personalizados", exact: true }).click();
+      const administradorContacto = page.getByRole("dialog", { name: "Campos de contacto" });
+      await administradorContacto.getByLabel("Nombre visible").fill("Nivel cliente");
+      await administradorContacto.getByLabel("Tipo").selectOption("select");
+      await administradorContacto.getByLabel("Opciones, una por línea").fill("bronce\noro");
+      const creadoDesdeInterfaz = page.waitForResponse((response) =>
+        response.url().endsWith("/api/custom-fields") && response.request().method() === "POST");
+      await administradorContacto.getByRole("button", { name: "Guardar campo" }).click();
+      const campoContactoUi = (await (await creadoDesdeInterfaz).json()).campo;
+      assert.equal(campoContactoUi.visibilidad, "privado", "La interfaz conserva privacidad por defecto");
+      await administradorContacto.getByRole("button", { name: "Cerrar" }).click();
+      await page.getByRole("button", { name: "Campos personalizados", exact: true }).click();
+      const administradorArchivo = page.getByRole("dialog", { name: "Campos de contacto" });
+      await administradorArchivo.getByLabel("Nombre visible").fill("Documento UI");
+      await administradorArchivo.getByLabel("Tipo").selectOption("archivo");
+      const archivoCreado = page.waitForResponse((response) =>
+        response.url().endsWith("/api/custom-fields") && response.request().method() === "POST");
+      await administradorArchivo.getByRole("button", { name: "Guardar campo" }).click();
+      const campoArchivoUi = (await (await archivoCreado).json()).campo;
+      await administradorArchivo.getByRole("button", { name: "Cerrar" }).click();
       const rutaPerfil = `**/api/contacts/${contacto.id}/profile`;
       await page.route(rutaPerfil, (route) => route.abort());
       await page.getByRole("button", { name: "Perfil", exact: true }).click();
@@ -100,6 +123,62 @@ try {
       const dialogoPerfil = page.getByRole("dialog", { name: "Perfil de Contacto de prueba" });
       await dialogoPerfil.getByLabel("Apellidos").waitFor();
       assert.equal(await dialogoPerfil.getByLabel("Apellidos").inputValue(), "Ejemplo");
+      await dialogoPerfil.getByLabel("Nivel cliente").selectOption("oro");
+      const guardarCampoContacto = page.waitForResponse((response) =>
+        response.url().endsWith(`/api/custom-fields/${campoContactoUi.id}/values`) &&
+        response.request().method() === "PUT");
+      await dialogoPerfil.getByRole("region", { name: "Campos personalizados" })
+        .getByRole("button", { name: "Guardar" }).click();
+      assert.equal((await guardarCampoContacto).status(), 200);
+      await dialogoPerfil.getByText("Guardado", { exact: true }).waitFor();
+      const entradaArchivo = dialogoPerfil.getByLabel("Cargar Documento UI");
+      const archivoPrueba = {
+        name: "archivo-ui.txt", mimeType: "text/plain", buffer: Buffer.from("archivo privado de prueba"),
+      };
+      await page.route("**/api/custom-fields/files", (route) =>
+        route.fulfill({ status: 503, json: { error: { message: "Almacén no disponible" } } }));
+      await entradaArchivo.setInputFiles(archivoPrueba);
+      await dialogoPerfil.getByRole("alert").getByText("Almacén no disponible").waitFor();
+      assert.equal(await dialogoPerfil.getByRole("link", { name: /archivo-ui\.txt/ }).count(), 0);
+      await page.unroute("**/api/custom-fields/files");
+
+      const urlValorArchivo = `**/api/custom-fields/${campoArchivoUi.id}/values`;
+      await page.route(urlValorArchivo, (route) => route.request().method() === "PUT"
+        ? route.fulfill({ status: 409, json: { error: { message: "Vinculación rechazada" } } })
+        : route.continue());
+      const cargaSinVincular = page.waitForResponse((response) =>
+        response.url().endsWith("/api/custom-fields/files") && response.request().method() === "POST");
+      await entradaArchivo.setInputFiles(archivoPrueba);
+      const archivoSinVincular = (await (await cargaSinVincular).json()).archivo;
+      await dialogoPerfil.getByRole("alert").getByText(/no se pudo vincular: Vinculación rechazada/).waitFor();
+      const estadoSinVincular = await (await context.get(
+        `/api/custom-fields/${campoArchivoUi.id}/values?entidadId=${contacto.id}`
+      )).json();
+      assert.deepEqual(estadoSinVincular.valores, [], "El archivo rechazado no se vinculó al contacto");
+      await page.unroute(urlValorArchivo);
+      await esperaStatus(await context.delete(`/api/custom-fields/files/${archivoSinVincular.id}`),
+        200, "Retirar archivo que no se pudo vincular");
+
+      const subirArchivoUi = page.waitForResponse((response) =>
+        response.url().endsWith("/api/custom-fields/files") && response.request().method() === "POST");
+      const vincularArchivoUi = page.waitForResponse((response) =>
+        response.url().endsWith(`/api/custom-fields/${campoArchivoUi.id}/values`) &&
+        response.request().method() === "PUT");
+      await entradaArchivo.setInputFiles(archivoPrueba);
+      const respuestaArchivoUi = await subirArchivoUi;
+      assert.equal(respuestaArchivoUi.status(), 201);
+      const archivoUi = (await respuestaArchivoUi.json()).archivo;
+      assert.equal((await vincularArchivoUi).status(), 200);
+      await dialogoPerfil.getByRole("link", { name: /archivo-ui\.txt/ }).waitFor();
+      const descargaNavegador = page.waitForEvent("download");
+      await dialogoPerfil.getByRole("link", { name: /archivo-ui\.txt/ }).click();
+      const descarga = await descargaNavegador;
+      assert.equal(descarga.suggestedFilename(), "archivo-ui.txt");
+      assert.equal(await descarga.failure(), null);
+      const contenidoDescargado = await readFile(await descarga.path());
+      assert.deepEqual(contenidoDescargado, archivoPrueba.buffer);
+      await esperaStatus(await anonimo.get(`/api/custom-fields/files/${archivoUi.id}`), 401, "Archivo sin sesión");
+      console.log("OK: carga y vinculación de archivo desde UI; fallo de almacén y de vinculación, reintento y descarga privada.");
       await dialogoPerfil.getByLabel("Correos, uno por línea").fill("correo inválido");
       const rechazo = page.waitForResponse((response) =>
         response.url().endsWith(`/api/contacts/${contacto.id}/profile`) && response.request().method() === "PATCH");
@@ -115,6 +194,15 @@ try {
       assert.equal(await dialogoPerfil.getByLabel("Apellidos").inputValue(), "Apellido guardado");
       await dialogoPerfil.getByRole("button", { name: "Cerrar" }).click();
       await page.getByRole("button", { name: "Empresas", exact: true }).click();
+      await page.getByRole("button", { name: "Campos personalizados", exact: true }).click();
+      const administradorEmpresa = page.getByRole("dialog", { name: "Campos de empresa" });
+      await administradorEmpresa.getByLabel("Nombre visible").fill("Crédito disponible");
+      await administradorEmpresa.getByLabel("Tipo").selectOption("numero");
+      const campoEmpresaCreado = page.waitForResponse((response) =>
+        response.url().endsWith("/api/custom-fields") && response.request().method() === "POST");
+      await administradorEmpresa.getByRole("button", { name: "Guardar campo" }).click();
+      const campoEmpresaUi = (await (await campoEmpresaCreado).json()).campo;
+      await administradorEmpresa.getByRole("button", { name: "Cerrar" }).click();
       await page.getByLabel("Razón social").fill(`Interfaz ${suffix}`);
       await page.getByLabel("Ciudad").fill("Ciudad de prueba");
       const guardado = page.waitForResponse((response) =>
@@ -122,6 +210,14 @@ try {
       await page.getByRole("button", { name: "Guardar", exact: true }).click();
       assert.equal((await guardado).status(), 201);
       await page.getByRole("heading", { name: "Contactos vinculados" }).waitFor();
+      await page.getByLabel("Crédito disponible").fill("1250");
+      const guardarCampoEmpresa = page.waitForResponse((response) =>
+        response.url().endsWith(`/api/custom-fields/${campoEmpresaUi.id}/values`) &&
+        response.request().method() === "PUT");
+      await page.getByRole("region", { name: "Campos personalizados" })
+        .getByRole("button", { name: "Guardar" }).click();
+      assert.equal((await guardarCampoEmpresa).status(), 200);
+      await page.getByText("Guardado", { exact: true }).waitFor();
       await page.getByLabel("Buscar contacto para vincular").fill("Contacto de prueba");
       await page.getByRole("button", { name: "Vincular", exact: true }).click();
       await page.getByRole("button", { name: "Desvincular", exact: true }).waitFor();
@@ -133,6 +229,12 @@ try {
       page.once("dialog", (dialog) => void dialog.accept());
       await page.getByRole("button", { name: "Eliminar empresa" }).click();
       await page.getByRole("alert").getByText(/tiene sucursales, contactos o campos personalizados/).waitFor();
+      const borrarValorEmpresa = page.waitForResponse((response) =>
+        response.url().endsWith(`/api/custom-fields/${campoEmpresaUi.id}/values`) &&
+        response.request().method() === "DELETE");
+      await page.getByRole("region", { name: "Campos personalizados" })
+        .getByRole("button", { name: "Quitar valor" }).click();
+      assert.equal((await borrarValorEmpresa).status(), 200);
       await page.getByRole("button", { name: "Desvincular", exact: true }).click();
       await page.getByText("Sin contactos vinculados.").waitFor();
       page.once("dialog", (dialog) => void dialog.accept());
@@ -151,8 +253,21 @@ try {
   await esperaStatus(await context.put(valores, { data: { entidadId: contacto.id, valor: "12" } }), 422, "Valor inválido");
   await esperaStatus(await context.put(valores, { data: { entidadId: "ct_inexistente", valor: 12 } }), 404, "Contacto inexistente");
   await esperaStatus(await context.put(valores, { data: { entidadId: contacto.id, valor: 12 } }), 200, "Guardar valor");
+  const otroContacto = (await (await esperaStatus(await context.post("/api/contacts", {
+    data: { name: "Otro contacto de prueba", phone: `52156${Math.floor(10000000 + Math.random() * 90000000)}` },
+  }), 201, "Crear otro contacto para aislar valores")).json()).contact;
+  await esperaStatus(await context.put(valores, {
+    data: { entidadId: otroContacto.id, valor: 24 },
+  }), 200, "Guardar otro valor del mismo campo");
   const listado = await esperaStatus(await context.get(valores), 200, "Consultar valor");
-  assert.deepEqual((await listado.json()).valores, [{ entidadId: contacto.id, valor: 12 }]);
+  const valoresPorEntidad = new Map((await listado.json()).valores.map(({ entidadId, valor }) => [entidadId, valor]));
+  assert.equal(valoresPorEntidad.size, 2);
+  assert.equal(valoresPorEntidad.get(contacto.id), 12);
+  assert.equal(valoresPorEntidad.get(otroContacto.id), 24);
+  const valorIndividual = await esperaStatus(await context.get(`${valores}?entidadId=${contacto.id}`),
+    200, "Consultar solo el registro seleccionado");
+  assert.deepEqual((await valorIndividual.json()).valores, [{ entidadId: contacto.id, valor: 12 }],
+    "La respuesta individual no expone valores de otros contactos");
 
   const campoArchivoResp = await esperaStatus(await context.post("/api/custom-fields", {
     data: { entidad: "contacto", clave: "documento", nombre: "Documento", tipo: "archivo", opciones: [] },
@@ -465,10 +580,10 @@ try {
     await esperaStatus(await context.put(`/api/crm/deal-fields/${id}/values`, {
       data: { entidadId: trato.id, valor: caso.valor },
     }), 200, `Guardar ${caso.tipo}`);
-    const valoresTrato = await esperaStatus(await context.get(`/api/crm/deal-fields/${id}/values`),
+    const valoresTrato = await esperaStatus(await context.get(`/api/crm/deal-fields/${id}/values?entidadId=${trato.id}`),
       200, `Leer ${caso.tipo}`);
     assert.deepEqual((await valoresTrato.json()).valores, [{ entidadId: trato.id, valor: caso.valor }]);
-    await esperaStatus(await miembro.get(`/api/crm/deal-fields/${id}/values`), 404, `Proteger ${caso.tipo} privado`);
+    await esperaStatus(await miembro.get(`/api/crm/deal-fields/${id}/values?entidadId=${trato.id}`), 404, `Proteger ${caso.tipo} privado`);
   }
   const campoTrato = (await (await esperaStatus(await context.post("/api/crm/deal-fields", {
     data: { entidad: "trato", clave: "documento", nombre: "Documento", tipo: "archivo", opciones: [] },

@@ -15,7 +15,7 @@ export const GET = withAuth(async (session, req: Request) => {
   const offset = z.coerce.number().int().min(0).max(10000000).safeParse(url.searchParams.get("offset") ?? 0);
   if (!filtros.success || !offset.success) return apiError(422, "invalid_query", "Filtros de contactos inválidos");
   const rows = await listarContactos(session.organizationId, filtros.data, offset.data);
-  const contacts = rows.map((r) => serializeContact(r.contact, r.stageName, r.priority));
+  const contacts = rows.map((r) => ({ ...serializeContact(r.contact, r.stageName, r.priority), avatarId: r.avatarId }));
   return Response.json({ contacts });
 });
 

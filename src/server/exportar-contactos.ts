@@ -19,7 +19,7 @@ export function filasExportacion(contactos: Contactos): string[][] {
     contact.phone ?? contact.waIdentity,
     CHANNEL_LABEL[contact.channel],
     stageName ?? "",
-    "",
+    contact.tags.join(", "),
     `${SOURCE_LABELS[effectiveSource(contact.source, cuentaComoAnuncio(origen)).value]}${!contact.source && cuentaComoAnuncio(origen) ? " (deducida)" : ""}`,
     amountCents === null ? "" : `${(amountCents / 100).toFixed(2)} ${currency ?? ""}`.trim(),
     lastMessageAt?.toISOString() ?? "",

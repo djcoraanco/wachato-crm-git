@@ -173,9 +173,12 @@ async function main() {
     }),
   });
   ok("inbound BSUID entregado", inb1.res.ok, JSON.stringify(inb1.json));
-  await sleep(1200);
 
-  let convs = (await api("/api/conversations")).json?.conversations ?? [];
+  let convs = [];
+  await hasta(async () => {
+    convs = (await api("/api/conversations")).json?.conversations ?? [];
+    return convs.some((c) => c.contact.name === "Dueña Dental");
+  });
   const bsuidConv = convs.find((c) => c.contact.name === "Dueña Dental");
   ok("conversación con nombre de perfil (no el BSUID crudo)", !!bsuidConv);
   ok("contacto BSUID sin teléfono", bsuidConv?.contact.phone === null);
@@ -210,10 +213,11 @@ async function main() {
       waMessageId: "wamid.e2e.bsuid.1",
     }),
   });
-  await sleep(800);
-  const msgs =
-    (await api(`/api/conversations/${bsuidConv?.id}/messages`)).json?.messages ??
-    [];
+  let msgs = [];
+  await hasta(async () => {
+    msgs = (await api(`/api/conversations/${bsuidConv?.id}/messages`)).json?.messages ?? [];
+    return msgs.filter((m) => m.direction === "in").length === 1;
+  });
   const inCount = msgs.filter((m) => m.direction === "in").length;
   ok("webhook duplicado no duplica mensajes", inCount === 1, `in=${inCount}`);
 
@@ -293,7 +297,10 @@ async function main() {
       waMessageId: "wamid.e2e.ar.1",
     }),
   });
-  await sleep(1200);
+  await hasta(async () => {
+    const convs = (await api("/api/conversations")).json?.conversations ?? [];
+    return convs.some((c) => c.contact.name === "Lead AR");
+  });
   const convAr = ((await api("/api/conversations")).json?.conversations ?? []).find(
     (c) => c.contact.name === "Lead AR"
   );
@@ -1201,8 +1208,11 @@ async function main() {
       waMessageId: "wamid.e2e.008.in.img",
     }),
   });
-  await sleep(1600); // ingesta + descarga in-process del binario
-  const msgs6 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  let msgs6 = [];
+  await hasta(async () => {
+    msgs6 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+    return msgs6.some((m) => m.media?.caption === "foto de mi negocio" && m.media?.fetchStatus === "available");
+  }); // ingesta + descarga in-process del binario
   const inImg = msgs6.find((m) => m.media?.caption === "foto de mi negocio");
   ok(
     "imagen entrante queda disponible tras la descarga in-process",
@@ -1227,8 +1237,11 @@ async function main() {
       waMessageId: "wamid.e2e.008.in.loc",
     }),
   });
-  await sleep(900);
-  const msgs7 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  let msgs7 = [];
+  await hasta(async () => {
+    msgs7 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+    return msgs7.some((m) => m.type === "location" && m.direction === "in" && m.media?.payload?.name === "Mi taller");
+  });
   const inLoc = msgs7.find((m) => m.type === "location" && m.direction === "in");
   ok(
     "ubicación entrante trae payload directo",
@@ -1248,8 +1261,11 @@ async function main() {
       waMessageId: "wamid.e2e.008.in.broken",
     }),
   });
-  await sleep(1600);
-  const msgs8 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+  let msgs8 = [];
+  await hasta(async () => {
+    msgs8 = (await api(`/api/conversations/${conv008.id}/messages`)).json?.messages ?? [];
+    return msgs8.some((m) => m.id !== inImg?.id && m.media?.fetchStatus === "failed");
+  });
   const broken = msgs8.find((m) => m.id !== inImg?.id && m.media?.fetchStatus === "failed");
   ok(
     "descarga fallida degrada a failed sin perder el mensaje",
@@ -2167,9 +2183,12 @@ async function agendaChecks() {
       waMessageId: "wamid.e2e.015.b.1",
     }),
   });
-  await sleep(1500);
-
-  const convsAgenda = (await api("/api/conversations")).json?.conversations ?? [];
+  let convsAgenda = [];
+  await hasta(async () => {
+    convsAgenda = (await api("/api/conversations")).json?.conversations ?? [];
+    return convsAgenda.some((c) => c.contact.phone === "524627015001") &&
+      convsAgenda.some((c) => c.contact.phone === "524627015002");
+  });
   const convA = convsAgenda.find((c) => c.contact.phone === "524627015001");
   const convB = convsAgenda.find((c) => c.contact.phone === "524627015002");
   ok("dos conversaciones de prueba listas", Boolean(convA && convB));
@@ -2805,6 +2824,18 @@ async function atribucionChecks() {
   const etapaCalificado = board0.stages.filter((s) => s.kind === "open").at(-1);
   const etapaGanada = board0.stages.find((s) => s.kind === "won");
   const etapaInicial = board0.stages.find((s) => s.kind === "open");
+  const leadDe = async (name) => {
+    const board = (await api("/api/pipeline/board")).json;
+    return board.leads.find((lead) => lead.contact.name === name);
+  };
+  const esperarLead = async (name) => {
+    let lead;
+    await hasta(async () => {
+      lead = await leadDe(name);
+      return Boolean(lead);
+    });
+    return lead;
+  };
 
   const etapaAjena = await api("/api/settings/capi", {
     method: "PUT",
@@ -2864,7 +2895,7 @@ async function atribucionChecks() {
       waMessageId: `wamid.e2e.016.ad.${SUF}.1`,
     }),
   });
-  await sleep(1400);
+  await esperarLead(NOMBRE_AD);
 
   // Segundo mensaje con OTRO referral: el primero gana y no se sobreescribe.
   await api("/api/dev/wa-mock/inbound", {
@@ -2880,8 +2911,7 @@ async function atribucionChecks() {
   });
   await sleep(1200);
 
-  const board1 = (await api("/api/pipeline/board")).json;
-  const leadAd = board1.leads.find((l) => l.contact.name === NOMBRE_AD);
+  const leadAd = await leadDe(NOMBRE_AD);
   ok("el lead del anuncio existe en el tablero", !!leadAd);
 
   const mov1 = await api(`/api/pipeline/leads/${leadAd.id}`, {
@@ -3007,9 +3037,7 @@ async function atribucionChecks() {
       waMessageId: `wamid.e2e.016.org.${SUF}`,
     }),
   });
-  await sleep(1400);
-  const board2 = (await api("/api/pipeline/board")).json;
-  const leadOrg = board2.leads.find((l) => l.contact.name === NOMBRE_ORG);
+  const leadOrg = await esperarLead(NOMBRE_ORG);
   await api(`/api/pipeline/leads/${leadOrg.id}`, {
     method: "PATCH",
     body: JSON.stringify({ stageId: etapaCalificado.id }),
@@ -3043,9 +3071,7 @@ async function atribucionChecks() {
       waMessageId: `wamid.e2e.016.fail.${SUF}`,
     }),
   });
-  await sleep(1400);
-  const board3 = (await api("/api/pipeline/board")).json;
-  const leadFail = board3.leads.find((l) => l.contact.name === NOMBRE_FAIL);
+  const leadFail = await esperarLead(NOMBRE_FAIL);
   const movFail = await api(`/api/pipeline/leads/${leadFail.id}`, {
     method: "PATCH",
     body: JSON.stringify({ stageId: etapaCalificado.id }),

@@ -407,14 +407,12 @@ export function InboxClient({
   );
 
   return (
-    // 061 · D3 — En escritorio, la lista, el hilo y el panel son tarjetas
-    // separadas sobre el marco.
-    <div className="flex h-full lg:gap-[var(--hueco)]">
+    <div className="flex h-full">
       {/* Móvil: una columna a la vez. La lista cede la pantalla completa al
           hilo en cuanto hay conversación elegida (patrón maestro-detalle). */}
       <section
         className={cn(
-          "w-full shrink-0 overflow-hidden md:w-[300px] md:border-r lg:w-[340px] lg:overflow-visible lg:border-r-0",
+          "w-full shrink-0 overflow-hidden md:w-[300px] md:border-r",
           selected && "max-md:hidden"
         )}
       >
@@ -429,13 +427,13 @@ export function InboxClient({
 
       <section
         className={cn(
-          "flex min-w-0 flex-1 flex-col lg:gap-[var(--hueco)]",
+          "flex min-w-0 flex-1 flex-col",
           !selected && "max-md:hidden"
         )}
       >
         {selected ? (
           <>
-            <header className="flex items-center justify-between gap-1 border-b bg-background px-2 py-2.5 md:px-4 lg:tarjeta lg:border-b-0 lg:px-5 lg:py-3">
+            <header className="flex items-center justify-between gap-1 border-b bg-card px-2 py-2.5 md:px-4">
               {/* Volver a la lista: en móvil el hilo ocupa toda la pantalla. */}
               <button
                 onClick={() => setSelectedId(null)}
@@ -552,7 +550,7 @@ export function InboxClient({
             </Composer>
           </>
         ) : (
-          <div className="thread-bg flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center lg:tarjeta">
+          <div className="thread-bg flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
             <p className="font-serif text-[24px] italic leading-tight text-text-2">
               Elige una conversación para ver el hilo
             </p>
@@ -573,17 +571,17 @@ export function InboxClient({
 
       <section
         className={cn(
-          "shrink-0 overflow-hidden border-l transition-[width] duration-200 xl:tarjeta xl:border-l-0",
+          "shrink-0 overflow-hidden border-l bg-card transition-[width] duration-200",
           // Debajo de xl no hay ancho para una tercera columna: el panel se
           // vuelve un cajón que entra desde la derecha, encima del hilo.
           "max-xl:fixed max-xl:inset-y-0 max-xl:right-0 max-xl:z-40 max-xl:w-auto max-xl:bg-popover max-xl:transition-transform",
           panelOpen && selected
-            ? "w-[320px] max-xl:translate-x-0 max-xl:shadow-pop"
+            ? "w-[300px] max-xl:translate-x-0 max-xl:shadow-pop"
             : "w-0 border-l-0 max-xl:translate-x-full xl:hidden"
         )}
       >
         {selected && (
-          <div className="h-full w-[320px] max-xl:w-[min(320px,88vw)]">
+          <div className="h-full w-[300px] max-xl:w-[min(300px,88vw)]">
             <ContactPanel
               conversation={selected}
               refreshKey={detailRev}

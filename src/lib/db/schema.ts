@@ -192,6 +192,7 @@ export const contact = pgTable(
      * (`getOrCreateConversation`); después manda el interruptor de la Bandeja.
      */
     aiPaused: boolean("ai_paused").notNull().default(false),
+    tags: jsonb("tags").$type<string[]>().notNull().default([]),
     archivedAt: timestamp("archived_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -248,6 +249,30 @@ export const contactProfile = pgTable(
       name: "contact_profile_org_contact_fk",
     }).onDelete("cascade"),
     index("contact_profile_org_contact_idx").on(t.organizationId, t.contactId),
+  ]
+);
+
+export const contactAvatar = pgTable(
+  "contact_avatar",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id").notNull()
+      .references(() => organization.id, { onDelete: "restrict" }),
+    contactId: text("contact_id").notNull(),
+    status: text("status", { enum: ["pendiente", "activo", "eliminando"] })
+      .notNull().default("pendiente"),
+    diskFingerprint: text("disk_fingerprint").notNull(),
+    bucketFingerprint: text("bucket_fingerprint"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("contact_avatar_org_contact_uq").on(t.organizationId, t.contactId),
+    foreignKey({
+      columns: [t.organizationId, t.contactId],
+      foreignColumns: [contact.organizationId, contact.id],
+      name: "contact_avatar_org_contact_fk",
+    }).onDelete("restrict"),
+    check("contact_avatar_status_check", sql`${t.status} in ('pendiente', 'activo', 'eliminando')`),
   ]
 );
 
@@ -1645,6 +1670,75 @@ export const aiCredentials = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("ai_credentials_org_uq").on(t.organizationId)]
+);
+
+/**
+ * 066 — Credencial separada para transcribir notas de voz. No se reutiliza
+ * `ai_credentials`: Whisper no es un modelo de chat y la activación del LLM no
+ * constituye consentimiento para enviar audio a otro endpoint.
+ */
+export const voiceTranscriptionCredentials = pgTable(
+  "voice_transcription_credentials",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["openai", "groq"] })
+      .notNull()
+      .default("openai"),
+    enabled: boolean("enabled").notNull().default(false),
+    tokenCipher: text("token_cipher").notNull(),
+    tokenIv: text("token_iv").notNull(),
+    tokenTag: text("token_tag").notNull(),
+    tokenLast4: text("token_last4").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("voice_transcription_credentials_org_uq").on(t.organizationId)]
+);
+
+/**
+ * 066 — Resultado transitorio, cifrado, para que reintentar un despacho no
+ * vuelva a mandar el mismo audio al proveedor. Nunca se expone por una ruta
+ * pública. El lease permite recuperar filas si el proceso cae.
+ */
+export const voiceTranscriptionCache = pgTable(
+  "voice_transcription_cache",
+  {
+    id: text("id").primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    mediaAssetId: text("media_asset_id")
+      .notNull()
+      .references(() => mediaAsset.id, { onDelete: "cascade" }),
+    provider: text("provider", { enum: ["openai", "groq"] }).notNull(),
+    status: text("status", { enum: ["processing", "ready", "failed"] })
+      .notNull(),
+    transcriptCipher: text("transcript_cipher"),
+    transcriptIv: text("transcript_iv"),
+    transcriptTag: text("transcript_tag"),
+    leaseId: text("lease_id"),
+    leaseUntil: timestamp("lease_until"),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("voice_transcription_cache_org_asset_uq").on(
+      t.organizationId,
+      t.mediaAssetId
+    ),
+    index("voice_transcription_cache_org_expiry_idx").on(
+      t.organizationId,
+      t.expiresAt
+    ),
+    check(
+      "voice_transcription_cache_result_check",
+      sql`(${t.status} = 'ready' and ${t.transcriptCipher} is not null and ${t.transcriptIv} is not null and ${t.transcriptTag} is not null) or (${t.status} != 'ready' and ${t.transcriptCipher} is null and ${t.transcriptIv} is null and ${t.transcriptTag} is null)`
+    ),
+  ]
 );
 
 /* ============================================================

@@ -78,6 +78,9 @@ export const DELETE = withAuth(async (session, req: Request, ctx: Params) => {
       return apiError(409, "datos_comerciales",
         "El contacto tiene tratos, actividades, empresas o campos personalizados. Retira esos datos antes de eliminarlo.");
     }
+    if (resultado.motivo === "avatar_pendiente") {
+      return apiError(409, "avatar_pendiente", "Elimina primero el avatar del contacto desde su perfil.");
+    }
     return apiError(404, "not_found", "Conversación no encontrada");
   }
 

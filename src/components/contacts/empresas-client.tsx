@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AdministradorCamposButton, CamposPersonalizadosEditor } from "./campos-personalizados";
 
 type Empresa = {
   id: string;
@@ -32,7 +33,13 @@ function json(method: string, body: unknown): RequestInit {
   return { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
-export function EmpresasClient({ onVolver }: { onVolver: () => void }) {
+export function EmpresasClient({
+  onVolver,
+  puedeAdministrarCampos,
+}: {
+  onVolver: () => void;
+  puedeAdministrarCampos: boolean;
+}) {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [detalle, setDetalle] = useState<Detalle | null>(null);
   const [nombre, setNombre] = useState("");
@@ -130,6 +137,7 @@ export function EmpresasClient({ onVolver }: { onVolver: () => void }) {
       <header className="flex items-center gap-3 border-b px-4 py-4">
         <Button variant="outline" size="sm" onClick={onVolver}>Contactos</Button>
         <h2 className="text-lg font-bold">Empresas</h2>
+        <AdministradorCamposButton entidad="empresa" puedeAdministrar={puedeAdministrarCampos} />
       </header>
       <div className="grid flex-1 gap-4 overflow-auto p-4 md:grid-cols-[minmax(12rem,1fr)_2fr]">
         <section>
@@ -210,6 +218,7 @@ export function EmpresasClient({ onVolver }: { onVolver: () => void }) {
               ))}
             </div>
           )}
+          {detalle && <CamposPersonalizadosEditor entidad="empresa" entidadId={detalle.id} />}
         </section>
       </div>
     </div>

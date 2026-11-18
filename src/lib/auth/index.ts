@@ -67,6 +67,15 @@ function createAuth() {
       creatorRole: "owner",
       organizationHooks: {
         beforeDeleteOrganization: async ({ organization: actual }) => {
+          const [avatar] = await getDb().select({ id: schema.contactAvatar.id })
+            .from(schema.contactAvatar)
+            .where(scoped(schema.contactAvatar.organizationId, actual.id))
+            .limit(1);
+          if (avatar) {
+            throw new APIError("CONFLICT", {
+              message: "Elimina primero los avatares de contacto de la organización",
+            });
+          }
           const [archivo] = await getDb().select({ id: schema.customFieldFile.id })
             .from(schema.customFieldFile)
             .where(scoped(schema.customFieldFile.organizationId, actual.id))

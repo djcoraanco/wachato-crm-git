@@ -17,7 +17,13 @@ const borrarSchema = z.object({ entidadId: z.string().min(1).max(100) }).strict(
 export const GET = withAuth(async (session, _req: Request, ctx: Params) => {
   try {
     const { id } = await ctx.params;
-    return Response.json({ valores: await leerValoresCampo(session.organizationId, id, canConfigure(session.role)) });
+    const entidadId = new URL(_req.url).searchParams.get("entidadId");
+    if (entidadId !== null && (entidadId.length < 1 || entidadId.length > 100)) {
+      return apiError(422, "invalid_entity_id", "Registro de campo inválido");
+    }
+    return Response.json({
+      valores: await leerValoresCampo(session.organizationId, id, canConfigure(session.role), entidadId ?? undefined),
+    });
   } catch (error) {
     if (error instanceof ErrorCampo) return apiError(error.status, error.code, error.message);
     throw error;

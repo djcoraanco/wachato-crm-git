@@ -8,6 +8,7 @@ const filtrosSchema = z.object({
   q: z.string().trim().max(200).optional(),
   stage: z.string().trim().max(200).optional(),
   channel: z.enum(["whatsapp", "instagram", "messenger", "tiktok"]).optional(),
+  tag: z.string().trim().min(1).max(40).optional(),
   archived: z.enum(["true", "false"]).optional(),
 });
 
@@ -16,6 +17,7 @@ export function leerFiltrosContactos(params: URLSearchParams) {
     q: params.get("q") || undefined,
     stage: params.get("stage") || undefined,
     channel: params.get("channel") || undefined,
+    tag: params.get("tag") || undefined,
     archived: params.get("archived") || undefined,
   });
 }
@@ -33,6 +35,8 @@ export async function listarContactos(organizationId: string, filtros: Filtros, 
     ? or(
         sql`lower(translate(${schema.contact.name}, ${FROM}, ${TO})) like ${`%${like}%`}`,
         sql`lower(translate(${schema.contact.waIdentity}, ${FROM}, ${TO})) like ${`%${like}%`}`,
+        sql`exists (select 1 from jsonb_array_elements_text(${schema.contact.tags}) as etiqueta(valor)
+          where lower(translate(etiqueta.valor, ${FROM}, ${TO})) like ${`%${like}%`})`,
         digits.length >= 3
           ? sql`regexp_replace(coalesce(${schema.contact.phone}, ''), '\\D', '', 'g') like ${`%${digits}%`}`
           : undefined
@@ -43,12 +47,14 @@ export async function listarContactos(organizationId: string, filtros: Filtros, 
     organizationId,
     filtros.archived === "true" ? undefined : isNull(schema.contact.archivedAt),
     filtros.channel ? eq(schema.contact.channel, filtros.channel) : undefined,
+    filtros.tag ? sql`${schema.contact.tags} @> ${JSON.stringify([filtros.tag])}::jsonb` : undefined,
     filtros.stage ? eq(schema.pipelineStage.name, filtros.stage) : undefined,
     search
   );
   const consulta = db
     .select({
       contact: schema.contact,
+      avatarId: schema.contactAvatar.id,
       stageName: schema.pipelineStage.name,
       priority: schema.lead.priority,
       amountCents: schema.lead.amountCents,
@@ -57,6 +63,11 @@ export async function listarContactos(organizationId: string, filtros: Filtros, 
       origen: { id: schema.adAttribution.id, sourceType: schema.adAttribution.sourceType },
     })
     .from(schema.contact)
+    .leftJoin(schema.contactAvatar, and(
+      eq(schema.contactAvatar.contactId, schema.contact.id),
+      eq(schema.contactAvatar.organizationId, schema.contact.organizationId),
+      eq(schema.contactAvatar.status, "activo")
+    ))
     .leftJoin(schema.lead, and(
       eq(schema.lead.contactId, schema.contact.id),
       eq(schema.lead.organizationId, schema.contact.organizationId)

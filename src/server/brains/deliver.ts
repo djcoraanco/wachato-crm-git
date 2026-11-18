@@ -18,6 +18,12 @@ import { leerConfigDespacho } from "@/server/brains/config";
 import type { FilaDespacho } from "@/server/dispatch/outbox";
 import { isWindowOpen, windowExpiresAt } from "@/server/inbox/window";
 import { windowMsFor } from "@/server/channels/capabilities";
+import {
+  getVoiceTranscriptionSecret,
+  type VoiceTranscriptionConfigSecret,
+} from "@/server/transcription/credentials";
+import { conversacionPuedeTranscribir } from "@/server/transcription/politica";
+import { transcribirMediaEntrante } from "@/server/transcription/transcribir";
 
 /**
  * 021 — Entrega de un despacho al cerebro: leer la ráfaga, armar el evento y
@@ -48,6 +54,8 @@ function columnasDelMensaje() {
     fileName: schema.mediaAsset.fileName,
     payload: schema.mediaAsset.payload,
     assetId: schema.mediaAsset.id,
+    fileSize: schema.mediaAsset.fileSize,
+    fetchStatus: schema.mediaAsset.fetchStatus,
   };
 }
 
@@ -62,6 +70,8 @@ function paraEvento(m: {
   fileName: string | null;
   payload: unknown;
   assetId: string | null;
+  fileSize: number | null;
+  fetchStatus: "available" | "pending" | "failed" | null;
 }): MensajeParaEvento {
   return {
     id: m.id,
@@ -75,9 +85,81 @@ function paraEvento(m: {
           caption: m.caption,
           fileName: m.fileName,
           payload: m.payload,
+          assetId: m.assetId,
+          fileSize: m.fileSize,
+          fetchStatus: m.fetchStatus,
         }
       : null,
   };
+}
+
+function registrarFalloTranscripcion(etapa: "configuracion" | "medio"): void {
+  console.error(
+    JSON.stringify({
+      evento: "transcripcion_no_disponible",
+      etapa,
+      resultado: "despacho_continua",
+    })
+  );
+}
+
+export async function agregarTranscripcionesDeVoz(
+  messages: MensajeParaEvento[],
+  organizationId: string,
+  dependencias: {
+    cargarConfig?: (
+      organizationId: string
+    ) => Promise<VoiceTranscriptionConfigSecret | null>;
+    transcribir?: typeof transcribirMediaEntrante;
+  } = {}
+): Promise<MensajeParaEvento[]> {
+  if (!messages.some((message) => message.type === "audio")) return messages;
+
+  let transcription: VoiceTranscriptionConfigSecret | null;
+  try {
+    transcription = await (
+      dependencias.cargarConfig ?? getVoiceTranscriptionSecret
+    )(organizationId);
+  } catch {
+    registrarFalloTranscripcion("configuracion");
+    return messages.map((message) =>
+      message.type === "audio"
+        ? { ...message, transcription: { status: "unavailable" } }
+        : message
+    );
+  }
+  if (!transcription?.enabled) return messages;
+
+  let attempted = 0;
+  return Promise.all(
+    messages.map(async (message) => {
+      if (message.type !== "audio") return message;
+      if (attempted >= 3) {
+        return { ...message, transcription: { status: "unavailable" as const } };
+      }
+      attempted += 1;
+      try {
+        return {
+          ...message,
+          transcription: await (
+            dependencias.transcribir ?? transcribirMediaEntrante
+          )(
+            organizationId,
+            {
+              assetId: message.media?.assetId ?? null,
+              mimeType: message.media?.mimeType ?? null,
+              fileSize: message.media?.fileSize ?? null,
+              fetchStatus: message.media?.fetchStatus ?? null,
+            },
+            transcription
+          ),
+        };
+      } catch {
+        registrarFalloTranscripcion("medio");
+        return { ...message, transcription: { status: "unavailable" as const } };
+      }
+    })
+  );
 }
 
 /**
@@ -237,11 +319,14 @@ export async function construirEvento(
     .limit(1);
   if (!contact) return null;
 
-  const messages = await rafagaDe(
+  let messages = await rafagaDe(
     fila.organizationId,
     conv.id,
     fila.messageIds ?? []
   );
+  if (conversacionPuedeTranscribir(conv.channel, conv.isTest)) {
+    messages = await agregarTranscripcionesDeVoz(messages, fila.organizationId);
+  }
 
   return armarEvento({
     dispatchId: fila.id,

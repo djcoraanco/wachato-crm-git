@@ -192,6 +192,39 @@ describe("031 — lo que el webhook le daba al cerebro, ahora en el despacho", (
     expect("fileName" in m).toBe(false);
   });
 
+  it("066 — añade la transcripción al final solo cuando se activa", () => {
+    const m = unMensaje({
+      type: "audio",
+      media: {
+        waMediaId: "audio-1",
+        mimeType: "audio/ogg; codecs=opus",
+        caption: null,
+      },
+      transcription: { status: "ready", text: "Quiero una cita mañana." },
+    });
+    expect(Object.keys(m)).toEqual([
+      "id",
+      "at",
+      "type",
+      "text",
+      "mediaId",
+      "mimeType",
+      "caption",
+      "transcription",
+    ]);
+    expect(m.transcription).toEqual({
+      status: "ready",
+      text: "Quiero una cita mañana.",
+    });
+
+    const unavailable = unMensaje({
+      type: "audio",
+      transcription: { status: "unavailable" },
+    });
+    expect(unavailable.transcription).toEqual({ status: "unavailable" });
+    expect(JSON.stringify(evento())).toBe(CUERPO);
+  });
+
   it("una ubicación lleva sus coordenadas, y nombre y dirección si vinieron", () => {
     const m = unMensaje({
       type: "location",

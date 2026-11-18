@@ -5,6 +5,7 @@ import { leerConfigDespacho } from "@/server/brains/config";
 import { iniciarWorker, tanda } from "@/server/dispatch/worker";
 import { cifrarSecretosEnClaro } from "@/server/zernio/secreto-guardado";
 import { barrido, iniciarBarrido } from "@/server/webhooks/worker";
+import { iniciarLimpiezaCacheTranscripcion } from "@/server/transcription/limpieza";
 
 /**
  * 008 — Aviso al arranque si MEDIA_DIR no es escribible. Sin esto, el primer
@@ -96,6 +97,7 @@ export async function encryptLegacySecrets(): Promise<void> {
  * responde»: es el log que alguien mira cuando el agente no contesta.
  */
 export function resumeDispatch(): void {
+  iniciarLimpiezaCacheTranscripcion();
   const config = leerConfigDespacho();
   if (config.active) {
     iniciarWorker();

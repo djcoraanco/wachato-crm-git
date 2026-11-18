@@ -23,7 +23,7 @@ describe("barra lateral agrupada", () => {
     expect(labels(groups)).toEqual([
       ["Bandeja", "Pipeline", "Contactos"],
       ["Agente", "Laboratorio"],
-      ["Resultados"],
+      ["Resultados", "Conexiones"],
     ]);
   });
 
@@ -69,6 +69,7 @@ describe("barra lateral agrupada", () => {
   it("la cabecera usa los nombres reales de las vistas y sus ajustes", () => {
     expect(navTitle("/inbox/cv_123", { role: "member" })).toBe("Bandeja");
     expect(navTitle("/bookings", { agenda: true })).toBe("Citas");
+    expect(navTitle("/connections", {})).toBe("Conexiones");
     expect(navTitle("/settings/instagram", {})).toBe("Instagram");
     expect(navTitle("/settings", {})).toBe("Ajustes");
     expect(navTitle("/desconocido", {})).toBe("CRM");
