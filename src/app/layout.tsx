@@ -1,14 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import {
-  Archivo,
-  IBM_Plex_Mono,
-  IBM_Plex_Sans,
-  Instrument_Serif,
-  Inter,
-  Nunito,
-  Plus_Jakarta_Sans,
-  Urbanist,
-} from "next/font/google";
+import localFont from "next/font/local";
 import { accentCssVariables, DEFAULT_BRANDING } from "@/lib/branding";
 import { faviconHref } from "@/lib/favicon";
 import { appIconHref, NAV_INK, shortAppName } from "@/lib/pwa";
@@ -20,51 +11,58 @@ import { enabledChannels } from "@/server/channels/enabled";
 import { productName } from "@/lib/channels";
 import "./globals.css";
 
-// next/font las descarga en BUILD y las sirve self-hosted (sin CDN en runtime).
-const nunito = Nunito({
-  subsets: ["latin"],
-  weight: ["800", "900"],
+// Las fuentes llegan con las dependencias; el build no consulta Google Fonts.
+const nunito = localFont({
+  src: "../../node_modules/@fontsource-variable/nunito/files/nunito-latin-wght-normal.woff2",
+  weight: "200 1000",
   variable: "--font-nunito",
   display: "swap",
 });
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const jakarta = localFont({
+  src: "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2",
+  weight: "200 800",
   variable: "--font-jakarta",
   display: "swap",
 });
-const urbanist = Urbanist({
-  subsets: ["latin"],
+const urbanist = localFont({
+  src: "../../node_modules/@fontsource-variable/urbanist/files/urbanist-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-urbanist",
   display: "swap",
 });
-const archivo = Archivo({
-  subsets: ["latin"],
+const archivo = localFont({
+  src: "../../node_modules/@fontsource-variable/archivo/files/archivo-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-archivo",
   display: "swap",
 });
 // 062 — Las otras dos letras que se eligen en Ajustes → Apariencia.
-const inter = Inter({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-inter",
   display: "swap",
 });
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const plexSans = localFont({
+  src: "../../node_modules/@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2",
+  weight: "100 700",
   variable: "--font-plex-sans",
   display: "swap",
 });
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+const instrumentSerif = localFont({
+  src: [
+    { path: "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2", weight: "400", style: "italic" },
+  ],
   variable: "--font-serif",
   display: "swap",
 });
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const plexMono = localFont({
+  src: [
+    { path: "../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-600-normal.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-mono",
   display: "swap",
 });

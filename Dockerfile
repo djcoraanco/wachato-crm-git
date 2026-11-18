@@ -22,6 +22,16 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG SOURCE_COMMIT=""
 ENV SOURCE_COMMIT=$SOURCE_COMMIT
 RUN pnpm build
+# Las fuentes SIL OFL incluidas en el build conservan sus licencias en la imagen.
+RUN mkdir -p /app/font-licenses \
+    && for font in \
+      @fontsource-variable/nunito @fontsource-variable/plus-jakarta-sans \
+      @fontsource-variable/urbanist @fontsource-variable/archivo \
+      @fontsource-variable/inter @fontsource-variable/ibm-plex-sans \
+      @fontsource/instrument-serif @fontsource/ibm-plex-mono; do \
+      mkdir -p "/app/font-licenses/$font" \
+      && cp "/app/node_modules/$font/LICENSE" "/app/font-licenses/$font/LICENSE" || exit 1; \
+    done
 # migrate.mjs autocontenido (drizzle-orm + postgres bundleados)
 RUN pnpm exec esbuild scripts/migrate.mjs --bundle --platform=node \
     --format=esm --outfile=migrate.bundle.mjs \
@@ -50,6 +60,7 @@ RUN mkdir -p /data/media && chown -R vocero:vocero /data
 COPY --from=builder --chown=vocero:vocero /app/.next/standalone ./
 COPY --from=builder --chown=vocero:vocero /app/node_modules/@fontsource/unifont/files/unifont-latin-400-normal.woff ./fonts/unifont.woff
 COPY --from=builder --chown=vocero:vocero /app/.next/static ./.next/static
+COPY --from=builder --chown=vocero:vocero /app/font-licenses ./font-licenses
 COPY --from=builder --chown=vocero:vocero /app/public ./public
 COPY --from=builder --chown=vocero:vocero /app/migrate.bundle.mjs ./migrate.mjs
 COPY --from=builder --chown=vocero:vocero /app/seed-demo.bundle.mjs ./seed-demo.mjs

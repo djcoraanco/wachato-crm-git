@@ -8,7 +8,8 @@
 
 - Añadidos los temas Wachato oscuro y Wachato claro, conservando los IDs y estilos de los temas existentes.
 - El fallback para instalaciones sin preferencia usa el tema Wachato oscuro y Plus Jakarta Sans; el selector conserva las opciones tipográficas previas.
-- Configuradas Nunito 800/900 como display y Plus Jakarta Sans para interfaz mediante `next/font`, servidas localmente desde el build.
+- Configuradas Nunito 800/900 como display y Plus Jakarta Sans para interfaz mediante `next/font/local`, con archivos de Fontsource instalados por pnpm. La compilación no consulta Google Fonts; la imagen incluye las licencias SIL OFL en `/app/font-licenses`.
+- Tras un fallo de descarga en Docker, se verificó `pnpm build` con la carga de Google Fonts deshabilitada y Chromium comprobó las ocho familias en la app de producción local, sin peticiones externas. La instalación inicial de dependencias sigue necesitando acceso al registro de pnpm o una caché disponible.
 - Añadidos tokens Tailwind/CSS de canales, burbuja IA, acento suave y línea; headings, wordmark y KPI usan la fuente display.
 - El acento predeterminado es turquesa Wachato, derivado para mantener contraste en claro y oscuro; la personalización por organización continúa activa.
 - Ajustados tokens de contraste de Wachato para cumplir los pisos WCAG ya probados por el proyecto.

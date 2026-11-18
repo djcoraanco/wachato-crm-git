@@ -69,6 +69,12 @@ describe("versión de la app", () => {
     // Con default vacío: quien construya sin pasarlo no debe ver un build roto.
     expect(dockerfile).toMatch(/ARG SOURCE_COMMIT=""/);
   });
+
+  it("las fuentes del layout no requieren Google Fonts en la compilación", () => {
+    const layout = readFileSync(path.join(RAIZ, "src", "app", "layout.tsx"), "utf8");
+    expect(layout).not.toContain("next/font/google");
+    expect(layout).toContain("next/font/local");
+  });
 });
 
 describe("versionLabel", () => {
